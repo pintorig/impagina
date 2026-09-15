@@ -12,8 +12,8 @@ android {
         applicationId = "it.example.idcard2a4"
         minSdk = 28          // ImageDecoder con gestione EXIF automatica
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.6.0"
+        versionCode = 8
+        versionName = "1.7.0"
     }
 
     buildTypes {

@@ -95,6 +95,10 @@ fun AppScreen() {
         shots = shots.toMutableList().also { it[index] = bmp }
     }
 
+    fun moveSlot(from: Int, to: Int) {
+        shots = Reorder.move(shots, from, to)
+    }
+
     fun ingest(index: Int, uri: Uri) = scope.launch {
         busy = true
         runCatching { withContext(Dispatchers.IO) { InputLoader.load(ctx, uri) } }
@@ -160,10 +164,19 @@ fun AppScreen() {
     }
 
     // --- Applicazione del filtro: pesante, fuori dal main thread ------------
+    // La cache è indicizzata su (bitmap, filtro): riordinare le facciate cambia
+    // solo le posizioni, quindi non ricomincia da capo la filtratura. La potatura
+    // per insieme voluto evita di dipendere dall'ordine fra LaunchedEffect.
+    val filterCache = remember { mutableMapOf<Pair<Bitmap, ImageFilter>, Bitmap>() }
+
     LaunchedEffect(shots, filter) {
         filtering = shots.any { it != null } && filter != ImageFilter.NONE
         rendered = withContext(Dispatchers.IO) {
-            shots.map { src -> src?.let { ImageFilters.apply(it, filter) } }
+            val wanted = shots.filterNotNull().map { it to filter }.toSet()
+            filterCache.keys.retainAll(wanted)
+            shots.map { src ->
+                src?.let { filterCache.getOrPut(it to filter) { ImageFilters.apply(it, filter) } }
+            }
         }
         filtering = false
     }
@@ -295,7 +308,11 @@ fun AppScreen() {
                                 pickFile.launch(arrayOf("image/*", "application/pdf"))
                             },
                             onRotate = { put(i, shots.getOrNull(i)?.rotatedBy(90)) },
-                            onClear = { put(i, null) }
+                            onClear = { put(i, null) },
+                            canMoveBack = Reorder.canMoveBack(i),
+                            canMoveForward = Reorder.canMoveForward(shots, i),
+                            onMoveBack = { moveSlot(i, i - 1) },
+                            onMoveForward = { moveSlot(i, i + 1) }
                         )
                     }
                     if (labelsInRow.size == 1) Spacer(Modifier.weight(1f))
@@ -310,6 +327,13 @@ fun AppScreen() {
                 onSelect = { filter = ImageFilter.entries[it] }
             )
             Text(filter.hint, style = MaterialTheme.typography.bodySmall)
+
+            if (spec.slotCount == 2) {
+                TextButton(
+                    onClick = { shots = Reorder.swap(shots, 0, 1) },
+                    enabled = shots.any { it != null }
+                ) { Text("Inverti le due facciate") }
+            }
 
             // ---------- Layout di destinazione ----------
             Text("Layout del foglio", fontWeight = FontWeight.SemiBold)
@@ -578,7 +602,11 @@ private fun SideCard(
     onScan: () -> Unit,
     onPick: () -> Unit,
     onRotate: () -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    canMoveBack: Boolean = false,
+    canMoveForward: Boolean = false,
+    onMoveBack: () -> Unit = {},
+    onMoveForward: () -> Unit = {}
 ) {
     OutlinedCard(modifier) {
         Column(
@@ -617,6 +645,21 @@ private fun SideCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = onRotate, contentPadding = PaddingValues(8.dp)) { Text("Ruota") }
                     TextButton(onClick = onClear, contentPadding = PaddingValues(8.dp)) { Text("Togli") }
+                }
+                // Frecce di posizione e non trascinamento: le schede stanno in una
+                // colonna scorrevole, dove un drag dopo long-press litigherebbe
+                // con lo scroll.
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = onMoveBack,
+                        enabled = canMoveBack,
+                        contentPadding = PaddingValues(8.dp)
+                    ) { Text("◀") }
+                    TextButton(
+                        onClick = onMoveForward,
+                        enabled = canMoveForward,
+                        contentPadding = PaddingValues(8.dp)
+                    ) { Text("▶") }
                 }
             }
         }

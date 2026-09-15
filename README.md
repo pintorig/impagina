@@ -12,6 +12,7 @@ nessun permesso runtime richiesto.
 - Acquisizione da fotocamera con ritaglio automatico dei bordi (scanner ML Kit)
 - Import da galleria o file manager: JPEG, PNG, HEIC, PDF
 - Rotazione a 90° per raddrizzare uno scatto storto
+- Riordino delle facciate, con inversione rapida per fronte/retro
 - Filtro di resa: colore, scala di grigi, alto contrasto
 - Filigrana a testo libero, in fondo al foglio o in diagonale
 - Uscita in PDF, JPEG, PNG o WebP, con risoluzione e qualità selezionabili
@@ -27,6 +28,22 @@ nessun permesso runtime richiesto.
 | Colore | nessuna alterazione | l'ente chiede la copia a colori |
 | Grigi | sola desaturazione | si vuole il bianco e nero senza toccare i toni |
 | Contrasto | auto-livelli sui grigi | resa da fotocopia, file più leggero |
+
+### Riordino
+
+Ogni facciata acquisita ha due frecce `◀ ▶` che la spostano nella sequenza; con
+due sole facciate c'è anche un pulsante che le inverte in un tocco, perché
+scansionare il retro per primo è l'errore più comune.
+
+**Le etichette restano legate alla posizione, non al contenuto.** Spostando una
+foto dal secondo al primo slot, quella foto diventa il "Fronte". È la semantica
+giusta qui: chi riordina lo fa proprio per correggere l'ordine in cui ha
+scansionato, quindi l'etichetta deve descrivere la destinazione sul foglio.
+
+Niente trascinamento, ed è una scelta: le schede stanno dentro una colonna
+scorrevole, dove un drag dopo long-press litiga con lo scroll e produce codice
+fragile che non si riesce a testare. Le frecce fanno la stessa cosa, sono
+accessibili da lettore di schermo e la logica sottostante è verificabile.
 
 ### Formati di uscita
 
@@ -170,6 +187,7 @@ documento-a4/
         │   ├── ImageFilters.kt     curva tonale e applicazione dei filtri
         │   ├── InputLoader.kt      foto e PDF → bitmap
         │   ├── PageRenderer.kt     disegno della pagina, condiviso da tutti i formati
+        │   ├── Reorder.kt          riordino delle facciate
         │   ├── DocumentExporter.kt PDF e rasterizzazione
         │   ├── OutputFormat.kt     formati, risoluzioni, conversione punti/pixel
         │   ├── Watermark.kt        modello della filigrana e gestione del testo
@@ -263,7 +281,7 @@ cache prima di essere aperto.
 - [x] Uscita in formati immagine oltre al PDF
 - [x] Qualità regolabile con peso reale e ricerca sotto tetto
 - [x] Layout multipagina oltre le quattro facciate
-- [ ] Riordino delle facciate per trascinamento
+- [x] Riordino delle facciate
 - [ ] Preset personalizzati salvabili dall'utente
 
 ## Privacy
