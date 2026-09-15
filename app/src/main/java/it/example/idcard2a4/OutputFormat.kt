@@ -73,13 +73,16 @@ class ExportResult(
     val pixelWidth: Int,
     val pixelHeight: Int,
     /** Qualità usata, `null` per i formati che non la prevedono. */
-    val quality: Int? = null
+    val quality: Int? = null,
+    /** Pagine contenute: sempre 1 per i formati immagine. */
+    val pageCount: Int = 1
 ) {
     val sizeLabel: String get() = Sizes.format(bytes.size)
 
     /** Descrizione compatta da mostrare dopo il salvataggio. */
     val summary: String get() = buildString {
         append(format.label)
+        if (pageCount > 1) append(" $pageCount pagine")
         if (format.isRaster) append(" ${pixelWidth}×${pixelHeight}")
         if (quality != null) append(" q$quality")
         append(", $sizeLabel")

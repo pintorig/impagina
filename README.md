@@ -16,6 +16,7 @@ nessun permesso runtime richiesto.
 - Filigrana a testo libero, in fondo al foglio o in diagonale
 - Uscita in PDF, JPEG, PNG o WebP, con risoluzione e qualità selezionabili
 - Ricerca automatica della qualità massima sotto un tetto di peso
+- Da 1 a 12 facciate, impaginate su più fogli quando serve
 - Anteprima fedele: mostra il PDF davvero generato, non una simulazione
 - Salvataggio dove vuoi tramite Storage Access Framework
 
@@ -82,12 +83,32 @@ lo verifica, così la regola non si perde in un refactor.
 | Passaporto | ID-3, 125 × 88 mm | Pagina dati, Pagina firma |
 | Altro documento | non nota | Fronte, Retro |
 
-Il layout di destinazione si compone di quattro scelte indipendenti:
+Le facciate vanno da 1 a 12. Il layout di destinazione si compone di quattro
+scelte indipendenti:
 
 - **Dimensione** — reale 1:1 oppure adattata al foglio
 - **Disposizione** — in colonna o affiancate
 - **Orientamento** — foglio verticale od orizzontale
 - **Didascalie** — etichetta sotto ogni facciata, utile per il passaporto
+
+### Più fogli
+
+Quando le facciate non stanno in una pagina, il piano ne produce altre. La
+capienza non è una costante arbitraria: **a dimensione reale è un fatto fisico**,
+cioè quante tessere entrano davvero in un A4. In colonna ne entrano 4, su due
+colonne 6 o 8 a seconda di etichette e filigrana. In modalità adattata il limite
+è invece una scelta di leggibilità (4 righe), perché lì qualunque numero di celle
+"entra" rimpicciolendosi fino a diventare una striscia illeggibile.
+
+La cella mantiene la stessa dimensione su tutte le pagine, anche quando l'ultima
+è parziale: due facciate rimaste da sole non si gonfiano a riempire il foglio,
+altrimenti la stampa risulterebbe disomogenea. Il blocco parziale viene invece
+centrato, così sembra voluto.
+
+**I formati immagine si disabilitano oltre la prima pagina.** Un JPEG non ha
+pagine: esportarne uno da un piano di tre fogli ne perderebbe due in silenzio.
+L'app disattiva i formati raster, torna al PDF e spiega perché, invece di
+produrre un file monco.
 
 Non tutte le combinazioni entrano in A4 a dimensione reale. Due pagine di
 passaporto affiancate su foglio verticale occuperebbero 250 mm in larghezza
@@ -241,7 +262,8 @@ cache prima di essere aperto.
 - [x] Filigrana a testo configurabile
 - [x] Uscita in formati immagine oltre al PDF
 - [x] Qualità regolabile con peso reale e ricerca sotto tetto
-- [ ] Layout multipagina per documenti oltre quattro facciate
+- [x] Layout multipagina oltre le quattro facciate
+- [ ] Riordino delle facciate per trascinamento
 - [ ] Preset personalizzati salvabili dall'utente
 
 ## Privacy

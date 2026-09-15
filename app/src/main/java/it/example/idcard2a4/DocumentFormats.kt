@@ -1,5 +1,8 @@
 package it.example.idcard2a4
 
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.max
 import kotlin.math.min
 
 /* =========================================================================
@@ -51,7 +54,7 @@ enum class DocumentType(
         label = "Passaporto",
         physicalSize = Formats.ID3,
         slotLabels = listOf("Pagina dati", "Pagina firma"),
-        hint = "Pagina singola del libretto (ID-3). Due pagine affiancate richiedono il foglio orizzontale."
+        hint = "Pagina singola del libretto (ID-3). Aggiungi facciate per visti e timbri."
     ),
     ALTRO(
         label = "Altro documento",
@@ -77,10 +80,10 @@ enum class Sizing(val label: String) {
     FIT("Adatta al foglio")
 }
 
-/** Come si dispongono le facciate sul foglio. */
-enum class Arrangement(val label: String) {
-    STACKED("In colonna"),
-    SIDE_BY_SIDE("Affiancate")
+/** Quante colonne compone la griglia. */
+enum class Arrangement(val label: String, val columns: Int) {
+    STACKED("In colonna", 1),
+    SIDE_BY_SIDE("Affiancate", 2)
 }
 
 enum class PageOrientation(val label: String) {
@@ -112,9 +115,13 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
 }
 
 data class PageLayout(
+    val pageIndex: Int,
+    val pageCount: Int,
     val pageWidthPt: Float,
     val pageHeightPt: Float,
     val slots: List<Box>,
+    /** Indice globale della facciata che occupa ogni slot di questa pagina. */
+    val slotIndices: List<Int>,
     val labels: List<String>,
     val labelHeightPt: Float,
     /** Fascia in fondo sottratta all'area utile e riservata alla filigrana. */
@@ -127,6 +134,27 @@ data class PageLayout(
     val isScaledDown: Boolean get() = effectiveSizing == Sizing.ACTUAL && appliedScale < 0.999f
 
     /** Percentuale da mostrare all'utente quando la riduzione è avvenuta. */
+    val scalePercent: Int get() = Math.round(appliedScale * 100f)
+}
+
+/**
+ * Il piano completo: una o più pagine con la stessa griglia e la stessa
+ * dimensione di cella. Le celle restano identiche anche quando l'ultima pagina
+ * è parziale, altrimenti la stampa risulterebbe disomogenea.
+ */
+data class PagePlan(
+    val pages: List<PageLayout>,
+    val columns: Int,
+    val rowsPerPage: Int,
+    val slotCount: Int
+) {
+    val pageCount: Int get() = pages.size
+    val slotsPerPage: Int get() = columns * rowsPerPage
+    val isMultiPage: Boolean get() = pages.size > 1
+    val first: PageLayout get() = pages.first()
+
+    val isScaledDown: Boolean get() = pages.any { it.isScaledDown }
+    val appliedScale: Float get() = pages.minOf { it.appliedScale }
     val scalePercent: Int get() = Math.round(appliedScale * 100f)
 }
 
@@ -147,32 +175,51 @@ object PageLayouts {
     const val LABEL_PT = 15f           // fascia per la didascalia sotto ogni slot
     const val WATERMARK_BAND_PT = 34f  // fascia in fondo, riservata alla filigrana
 
-    const val MAX_SLOTS = 4
+    /** Oltre questo numero le facciate sono troppe per essere gestite a mano. */
+    const val MAX_SLOTS = 12
 
-    fun compute(spec: LayoutSpec): PageLayout {
+    /**
+     * Righe per pagina in modalità adattata.
+     *
+     * Qui non esiste un limite fisico — qualunque numero di celle "entra",
+     * rimpicciolendosi — quindi il tetto è una scelta di leggibilità: oltre
+     * quattro righe la facciata diventa una striscia schiacciata, e tanto vale
+     * passare alla pagina successiva.
+     */
+    const val FIT_MAX_ROWS = 4
+
+    /** Il piano completo delle pagine. */
+    fun computePlan(spec: LayoutSpec): PagePlan {
         val n = spec.slotCount.coerceIn(1, MAX_SLOTS)
 
         val portrait = spec.orientation == PageOrientation.PORTRAIT
         val pageW = if (portrait) A4_SHORT_PT else A4_LONG_PT
         val pageH = if (portrait) A4_LONG_PT else A4_SHORT_PT
         val usableW = pageW - 2 * MARGIN_PT
+
         // La filigrana in fondo non si sovrappone al documento: le si riserva
         // una fascia, che in modalità adattata sottrae spazio alle facciate.
         val reservedBottom = reservedBottomFor(spec.watermark)
         val usableH = pageH - 2 * MARGIN_PT - reservedBottom
 
-        val stacked = spec.arrangement == Arrangement.STACKED
-        val cols = if (stacked) 1 else n
-        val rows = if (stacked) n else 1
-
         val physical = spec.documentType.physicalSize
         // Un documento senza dimensione nota non può essere stampato 1:1:
         // si ricade sull'adattamento, e lo si dichiara nel risultato.
-        val effectiveSizing = if (spec.sizing == Sizing.ACTUAL && physical == null) Sizing.FIT
-        else spec.sizing
+        val effectiveSizing =
+            if (spec.sizing == Sizing.ACTUAL && physical == null) Sizing.FIT else spec.sizing
 
         val baseLabel = if (spec.showLabels) LABEL_PT else 0f
 
+        val columns = min(spec.arrangement.columns, n)
+        val maxRows = maxRowsPerPage(effectiveSizing, physical, usableH, baseLabel)
+        // Non si riservano righe che non servono: con due facciate la griglia
+        // resta di due righe, non di quattro con mezza pagina vuota.
+        val rowsPerPage = min(maxRows, ceilDiv(n, columns))
+        val perPage = columns * rowsPerPage
+        val pageCount = ceilDiv(n, perPage)
+
+        // Dimensione della cella: calcolata una volta sulla griglia piena e poi
+        // riusata anche dall'ultima pagina, che può essere parziale.
         val slotW: Float
         val slotH: Float
         val gap: Float
@@ -182,8 +229,8 @@ object PageLayouts {
         if (effectiveSizing == Sizing.ACTUAL) {
             val w0 = physical!!.widthMm * MM_TO_PT
             val h0 = physical.heightMm * MM_TO_PT
-            val blockW0 = cols * w0 + (cols - 1) * GAP_PT
-            val blockH0 = rows * (h0 + baseLabel) + (rows - 1) * GAP_PT
+            val blockW0 = columns * w0 + (columns - 1) * GAP_PT
+            val blockH0 = rowsPerPage * (h0 + baseLabel) + (rowsPerPage - 1) * GAP_PT
 
             // Se la combinazione non entra (es. due pagine di passaporto affiancate
             // su foglio verticale), si riduce l'intero blocco in modo uniforme
@@ -198,40 +245,76 @@ object PageLayouts {
             scale = 1f
             gap = GAP_PT
             labelH = baseLabel
-            slotW = (usableW - (cols - 1) * gap) / cols
-            slotH = (usableH - (rows - 1) * gap) / rows - labelH
+            slotW = (usableW - (columns - 1) * gap) / columns
+            slotH = (usableH - (rowsPerPage - 1) * gap) / rowsPerPage - labelH
         }
 
-        val blockW = cols * slotW + (cols - 1) * gap
-        val blockH = rows * (slotH + labelH) + (rows - 1) * gap
+        val labels = labelsFor(spec.documentType, n)
 
-        val originX = (pageW - blockW) / 2f
-        // A dimensione reale il blocco sta leggermente sopra il centro geometrico:
-        // è il centro ottico, e lascia spazio in basso per timbri o annotazioni.
-        val originY = if (effectiveSizing == Sizing.ACTUAL) {
-            MARGIN_PT + (usableH - blockH) / 3f
-        } else {
-            MARGIN_PT
+        val pages = (0 until pageCount).map { pageIndex ->
+            val firstSlot = pageIndex * perPage
+            val countHere = min(perPage, n - firstSlot)
+            val colsUsed = min(columns, countHere)
+            val rowsUsed = ceilDiv(countHere, columns)
+
+            val blockW = colsUsed * slotW + (colsUsed - 1) * gap
+            val blockH = rowsUsed * (slotH + labelH) + (rowsUsed - 1) * gap
+
+            val originX = (pageW - blockW) / 2f
+            // A dimensione reale il blocco sta leggermente sopra il centro geometrico:
+            // è il centro ottico, e lascia spazio in basso per timbri o annotazioni.
+            val originY = if (effectiveSizing == Sizing.ACTUAL) {
+                MARGIN_PT + (usableH - blockH) / 3f
+            } else {
+                MARGIN_PT
+            }
+
+            val slots = (0 until countHere).map { i ->
+                val r = i / columns
+                val c = i % columns
+                val l = originX + c * (slotW + gap)
+                val t = originY + r * (slotH + labelH + gap)
+                Box(l, t, l + slotW, t + slotH)
+            }
+            val indices = (0 until countHere).map { firstSlot + it }
+
+            PageLayout(
+                pageIndex = pageIndex,
+                pageCount = pageCount,
+                pageWidthPt = pageW,
+                pageHeightPt = pageH,
+                slots = slots,
+                slotIndices = indices,
+                labels = indices.map { labels[it] },
+                labelHeightPt = labelH,
+                reservedBottomPt = reservedBottom,
+                appliedScale = scale,
+                effectiveSizing = effectiveSizing
+            )
         }
 
-        val slots = (0 until n).map { i ->
-            val r = if (stacked) i else 0
-            val c = if (stacked) 0 else i
-            val l = originX + c * (slotW + gap)
-            val t = originY + r * (slotH + labelH + gap)
-            Box(l, t, l + slotW, t + slotH)
-        }
+        return PagePlan(pages, columns, rowsPerPage, n)
+    }
 
-        return PageLayout(
-            pageWidthPt = pageW,
-            pageHeightPt = pageH,
-            slots = slots,
-            labels = labelsFor(spec.documentType, n),
-            labelHeightPt = labelH,
-            reservedBottomPt = reservedBottom,
-            appliedScale = scale,
-            effectiveSizing = effectiveSizing
-        )
+    /** Scorciatoia per la prima pagina, che nei casi a pagina singola è l'unica. */
+    fun compute(spec: LayoutSpec): PageLayout = computePlan(spec).first
+
+    /**
+     * Quante righe stanno su una pagina.
+     *
+     * A dimensione reale è un fatto fisico: quante tessere entrano davvero in un
+     * A4. In modalità adattata è invece una scelta di leggibilità.
+     */
+    fun maxRowsPerPage(
+        sizing: Sizing,
+        physical: PhysicalSize?,
+        usableH: Float,
+        labelHeight: Float
+    ): Int {
+        if (sizing != Sizing.ACTUAL || physical == null) return FIT_MAX_ROWS
+        val rowHeight = physical.heightMm * MM_TO_PT + labelHeight
+        val rows = floor((usableH + GAP_PT) / (rowHeight + GAP_PT)).toInt()
+        return max(1, rows)
     }
 
     /** Spazio da sottrarre in fondo al foglio per la filigrana. */
@@ -251,7 +334,9 @@ object PageLayouts {
     fun orientationThatFits(spec: LayoutSpec): PageOrientation? {
         if (spec.documentType.physicalSize == null) return null
         return PageOrientation.entries.firstOrNull { o ->
-            compute(spec.copy(orientation = o, sizing = Sizing.ACTUAL)).appliedScale >= 0.999f
+            computePlan(spec.copy(orientation = o, sizing = Sizing.ACTUAL)).appliedScale >= 0.999f
         }
     }
+
+    private fun ceilDiv(a: Int, b: Int): Int = ceil(a.toDouble() / b).toInt()
 }

@@ -51,8 +51,10 @@ object PageRenderer {
             textSize = (layout.labelHeightPt * 0.62f).coerceAtLeast(6f)
         }
 
-        images.forEachIndexed { i, bmp ->
-            val slot = layout.slots.getOrNull(i) ?: return@forEachIndexed
+        // Gli slot di questa pagina sono un sottoinsieme delle facciate: la
+        // corrispondenza passa da slotIndices, non dalla posizione nella lista.
+        layout.slots.forEachIndexed { i, slot ->
+            val bmp = layout.slotIndices.getOrNull(i)?.let { images.getOrNull(it) }
             if (bmp != null) drawFitted(canvas, bmp, slot, imagePaint)
             if (layout.labelHeightPt > 0f) {
                 val text = layout.labels.getOrNull(i).orEmpty()

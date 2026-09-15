@@ -36,27 +36,33 @@ object DocumentExporter {
         today: String = today()
     ): ExportResult {
         require(images.any { it != null }) { "Serve almeno una facciata" }
-        val layout = PageLayouts.compute(spec.copy(slotCount = images.size))
+        val plan = PageLayouts.computePlan(spec.copy(slotCount = images.size))
 
         return if (format == OutputFormat.PDF) {
             val out = ByteArrayOutputStream()
-            writePdf(out, images, layout, spec.watermark, today)
+            writePdf(out, images, plan, spec.watermark, today)
             ExportResult(
                 bytes = out.toByteArray(),
                 format = format,
-                pixelWidth = layout.pageWidthPt.roundToInt(),
-                pixelHeight = layout.pageHeightPt.roundToInt(),
-                quality = null
+                pixelWidth = plan.first.pageWidthPt.roundToInt(),
+                pixelHeight = plan.first.pageHeightPt.roundToInt(),
+                quality = null,
+                pageCount = plan.pageCount
             )
         } else {
-            val bitmap = rasterize(images, layout, spec.watermark, today, resolution.dpi)
+            // Un JPEG non ha pagine: se il piano ne prevede più di una, il file
+            // ne perderebbe silenziosamente una parte. Meglio fermarsi.
+            require(!plan.isMultiPage) {
+                "${format.label} non può contenere ${plan.pageCount} pagine: usa il PDF"
+            }
+            val bitmap = rasterize(images, plan.first, spec.watermark, today, resolution.dpi)
             try {
                 val out = ByteArrayOutputStream()
                 bitmap.compress(compressFormatFor(format), quality, out)
                 // il PNG ignora il parametro: riportarlo nel riepilogo sarebbe fuorviante
                 ExportResult(
                     out.toByteArray(), format, bitmap.width, bitmap.height,
-                    quality.takeIf { format.isLossy }
+                    quality.takeIf { format.isLossy }, pageCount = 1
                 )
             } finally {
                 bitmap.recycle()
@@ -83,8 +89,9 @@ object DocumentExporter {
         require(format.isLossy) { "La qualità riguarda solo i formati con perdita" }
         require(images.any { it != null }) { "Serve almeno una facciata" }
 
-        val layout = PageLayouts.compute(spec.copy(slotCount = images.size))
-        val bitmap = rasterize(images, layout, spec.watermark, today, resolution.dpi)
+        val plan = PageLayouts.computePlan(spec.copy(slotCount = images.size))
+        require(!plan.isMultiPage) { "La ricerca della qualità vale su una pagina sola" }
+        val bitmap = rasterize(images, plan.first, spec.watermark, today, resolution.dpi)
         val compressFormat = compressFormatFor(format)
         try {
             return QualitySearch.highestUnder(targetBytes) { q ->
@@ -101,33 +108,37 @@ object DocumentExporter {
     fun renderPreview(
         images: List<Bitmap?>,
         spec: LayoutSpec,
+        pageIndex: Int = 0,
         today: String = today()
     ): Bitmap? {
         if (images.none { it != null }) return null
-        val layout = PageLayouts.compute(spec.copy(slotCount = images.size))
+        val plan = PageLayouts.computePlan(spec.copy(slotCount = images.size))
+        val layout = plan.pages.getOrNull(pageIndex) ?: plan.first
         val longSidePt = maxOf(layout.pageWidthPt, layout.pageHeightPt)
         val dpi = Raster.dpiForLongSide(longSidePt, PREVIEW_LONG_SIDE)
         return rasterize(images, layout, spec.watermark, today, dpi)
     }
 
-    /** Scrive direttamente su uno stream, senza passare per la memoria. */
+    /** Scrive l'intero piano su uno stream, una pagina PDF per pagina del piano. */
     fun writePdf(
         out: OutputStream,
         images: List<Bitmap?>,
-        layout: PageLayout,
+        plan: PagePlan,
         watermark: Watermark,
         today: String
     ) {
         val doc = PdfDocument()
         try {
-            val info = PdfDocument.PageInfo.Builder(
-                layout.pageWidthPt.roundToInt(),
-                layout.pageHeightPt.roundToInt(),
-                1
-            ).create()
-            val page = doc.startPage(info)
-            PageRenderer.drawPage(page.canvas, images, layout, watermark, today)
-            doc.finishPage(page)
+            plan.pages.forEach { layout ->
+                val info = PdfDocument.PageInfo.Builder(
+                    layout.pageWidthPt.roundToInt(),
+                    layout.pageHeightPt.roundToInt(),
+                    layout.pageIndex + 1        // il PDF numera le pagine da 1
+                ).create()
+                val page = doc.startPage(info)
+                PageRenderer.drawPage(page.canvas, images, layout, watermark, today)
+                doc.finishPage(page)
+            }
             doc.writeTo(out)
         } finally {
             doc.close()

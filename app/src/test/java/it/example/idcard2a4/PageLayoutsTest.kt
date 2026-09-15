@@ -147,4 +147,146 @@ class PageLayoutsTest {
         )
         assertEquals(plain.slots.first().height, diagonal.slots.first().height, tol)
     }
+
+    /* --- Multipagina ---------------------------------------------------- */
+
+    private fun cards(n: Int, arrangement: Arrangement = Arrangement.STACKED) =
+        PageLayouts.computePlan(
+            LayoutSpec(
+                documentType = DocumentType.CARTA_IDENTITA,
+                slotCount = n,
+                arrangement = arrangement
+            )
+        )
+
+    @Test
+    fun `due facciate restano su una pagina sola`() {
+        val plan = cards(2)
+        assertEquals(1, plan.pageCount)
+        assertFalse(plan.isMultiPage)
+    }
+
+    @Test
+    fun `quattro tessere a dimensione reale entrano in un solo foglio`() {
+        val plan = cards(4)
+        assertEquals(1, plan.pageCount)
+        assertEquals(4, plan.rowsPerPage)
+        assertFalse(plan.isScaledDown)
+    }
+
+    @Test
+    fun `sei tessere in colonna si dividono in due fogli`() {
+        val plan = cards(6)
+        assertEquals(2, plan.pageCount)
+        assertEquals(listOf(4, 2), plan.pages.map { it.slots.size })
+    }
+
+    @Test
+    fun `sei tessere su due colonne stanno in un foglio solo`() {
+        val plan = cards(6, Arrangement.SIDE_BY_SIDE)
+        assertEquals(1, plan.pageCount)
+        assertEquals(2, plan.columns)
+        assertEquals(3, plan.rowsPerPage)
+    }
+
+    @Test
+    fun `dodici tessere su due colonne danno due fogli da otto e quattro`() {
+        val plan = cards(12, Arrangement.SIDE_BY_SIDE)
+        assertEquals(listOf(8, 4), plan.pages.map { it.slots.size })
+    }
+
+    @Test
+    fun `gli indici globali coprono tutte le facciate senza buchi`() {
+        val plan = cards(7)
+        val indices = plan.pages.flatMap { it.slotIndices }
+        assertEquals((0 until 7).toList(), indices)
+    }
+
+    @Test
+    fun `la cella ha la stessa dimensione su tutte le pagine`() {
+        val plan = cards(6)
+        val sizes = plan.pages.flatMap { page ->
+            page.slots.map { it.width to it.height }
+        }.distinct()
+        assertEquals(1, sizes.size)
+    }
+
+    @Test
+    fun `ogni pagina conosce la propria posizione nel piano`() {
+        val plan = cards(6)
+        plan.pages.forEachIndexed { i, page ->
+            assertEquals(i, page.pageIndex)
+            assertEquals(plan.pageCount, page.pageCount)
+        }
+    }
+
+    @Test
+    fun `nessuno slot esce dai margini con etichette e filigrana`() {
+        val plan = PageLayouts.computePlan(
+            LayoutSpec(
+                documentType = DocumentType.CARTA_IDENTITA,
+                slotCount = 12,
+                arrangement = Arrangement.SIDE_BY_SIDE,
+                showLabels = true,
+                watermark = Watermark("USO INTERNO", WatermarkStyle.BELOW)
+            )
+        )
+        plan.pages.forEach { page ->
+            val bottomLimit =
+                page.pageHeightPt - PageLayouts.MARGIN_PT - PageLayouts.WATERMARK_BAND_PT
+            page.slots.forEach {
+                assertTrue(it.left >= PageLayouts.MARGIN_PT - tol)
+                assertTrue(it.right <= page.pageWidthPt - PageLayouts.MARGIN_PT + tol)
+                assertTrue(it.top >= PageLayouts.MARGIN_PT - tol)
+                assertTrue(it.bottom + page.labelHeightPt <= bottomLimit + tol)
+            }
+        }
+    }
+
+    @Test
+    fun `gli slot di una pagina non si sovrappongono mai`() {
+        val plan = cards(8, Arrangement.SIDE_BY_SIDE)
+        plan.pages.forEach { page ->
+            page.slots.forEachIndexed { i, a ->
+                page.slots.drop(i + 1).forEach { b ->
+                    val disjoint = a.right <= b.left + tol || b.right <= a.left + tol ||
+                        a.bottom <= b.top + tol || b.bottom <= a.top + tol
+                    assertTrue("slot sovrapposti: $a e $b", disjoint)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `quattro pagine di passaporto occupano due fogli`() {
+        val plan = PageLayouts.computePlan(
+            LayoutSpec(documentType = DocumentType.PASSAPORTO, slotCount = 4)
+        )
+        assertEquals(listOf(2, 2), plan.pages.map { it.slots.size })
+        assertFalse(plan.isScaledDown)
+    }
+
+    @Test
+    fun `in modalita adattata sei facciate si dividono in due fogli`() {
+        val plan = PageLayouts.computePlan(
+            LayoutSpec(documentType = DocumentType.ALTRO, slotCount = 6)
+        )
+        assertEquals(listOf(4, 2), plan.pages.map { it.slots.size })
+    }
+
+    @Test
+    fun `una sola facciata adattata riempie tutta l'altezza utile`() {
+        val plan = PageLayouts.computePlan(
+            LayoutSpec(documentType = DocumentType.ALTRO, slotCount = 1)
+        )
+        val usableH = plan.first.pageHeightPt - 2 * PageLayouts.MARGIN_PT
+        assertEquals(usableH, plan.first.slots.single().height, tol)
+    }
+
+    @Test
+    fun `un numero di facciate fuori scala viene riportato nei limiti`() {
+        assertEquals(PageLayouts.MAX_SLOTS, cards(99).slotCount)
+        assertEquals(1, cards(0).slotCount)
+    }
 }
+

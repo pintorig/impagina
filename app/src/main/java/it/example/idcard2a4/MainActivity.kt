@@ -73,7 +73,8 @@ fun AppScreen() {
     var rendered by remember { mutableStateOf<List<Bitmap?>>(emptyList()) }
 
     var preview by remember { mutableStateOf<Bitmap?>(null) }
-    var layout by remember { mutableStateOf(PageLayouts.compute(LayoutSpec())) }
+    var plan by remember { mutableStateOf(PageLayouts.computePlan(LayoutSpec())) }
+    var previewPage by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
     var filtering by remember { mutableStateOf(false) }
     var targetSlot by remember { mutableIntStateOf(0) }
@@ -81,6 +82,13 @@ fun AppScreen() {
     fun selectType(type: DocumentType) {
         spec = spec.copy(documentType = type, slotCount = type.slotLabels.size)
         shots = List(type.slotLabels.size) { null }
+    }
+
+    /** Cambia il numero di facciate conservando quelle già acquisite. */
+    fun setSlotCount(count: Int) {
+        val n = count.coerceIn(1, PageLayouts.MAX_SLOTS)
+        spec = spec.copy(slotCount = n)
+        shots = List(n) { shots.getOrNull(it) }
     }
 
     fun put(index: Int, bmp: Bitmap?) {
@@ -162,14 +170,27 @@ fun AppScreen() {
 
     // --- Anteprima: genera il PDF vero e ne rasterizza la pagina ------------
     LaunchedEffect(rendered, spec) {
-        layout = PageLayouts.compute(spec.copy(slotCount = shots.size))
+        plan = PageLayouts.computePlan(spec.copy(slotCount = shots.size))
+        previewPage = previewPage.coerceIn(0, plan.pageCount - 1)
         // Digitare la filigrana cambia `spec` a ogni tasto. LaunchedEffect annulla
         // l'effetto precedente quando la chiave cambia, quindi questa attesa si
         // comporta da debounce: il PDF si rigenera solo a digitazione ferma.
         delay(250)
         preview = withContext(Dispatchers.IO) {
-            runCatching { DocumentExporter.renderPreview(rendered, spec) }.getOrNull()
+            runCatching { DocumentExporter.renderPreview(rendered, spec, previewPage) }.getOrNull()
         }
+    }
+
+    // Rigenera solo l'anteprima quando si sfoglia, senza rifare il piano.
+    LaunchedEffect(previewPage) {
+        preview = withContext(Dispatchers.IO) {
+            runCatching { DocumentExporter.renderPreview(rendered, spec, previewPage) }.getOrNull()
+        }
+    }
+
+    // Un'immagine non ha pagine: se il piano ne prevede più di una si torna al PDF.
+    LaunchedEffect(plan.isMultiPage) {
+        if (plan.isMultiPage && format.isRaster) format = OutputFormat.PDF
     }
 
     // --- Peso reale del file, calcolato in sottofondo -----------------------
@@ -238,8 +259,26 @@ fun AppScreen() {
             }
             Text(type.hint, style = MaterialTheme.typography.bodySmall)
 
+            // ---------- Numero di facciate ----------
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Facciate: ${spec.slotCount}",
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedIconButton(
+                    onClick = { setSlotCount(spec.slotCount - 1) },
+                    enabled = spec.slotCount > 1
+                ) { Text("−") }
+                Spacer(Modifier.width(8.dp))
+                OutlinedIconButton(
+                    onClick = { setSlotCount(spec.slotCount + 1) },
+                    enabled = spec.slotCount < PageLayouts.MAX_SLOTS
+                ) { Text("+") }
+            }
+
             // ---------- Facciate ----------
-            type.slotLabels.chunked(2).forEachIndexed { rowIndex, labelsInRow ->
+            PageLayouts.labelsFor(type, spec.slotCount).chunked(2).forEachIndexed { rowIndex, labelsInRow ->
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     labelsInRow.forEachIndexed { colIndex, label ->
                         val i = rowIndex * 2 + colIndex
@@ -348,7 +387,7 @@ fun AppScreen() {
             }
 
             // ---------- Avviso di riduzione, con la correzione proposta ----------
-            if (layout.isScaledDown) {
+            if (plan.isScaledDown) {
                 val fix = PageLayouts.orientationThatFits(spec)
                 Card(
                     colors = CardDefaults.cardColors(
@@ -358,7 +397,7 @@ fun AppScreen() {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             "Questa combinazione non entra a dimensione reale: " +
-                                "ridotta al ${layout.scalePercent}%.",
+                                "ridotta al ${plan.scalePercent}%.",
                             style = MaterialTheme.typography.bodyMedium
                         )
                         if (fix != null && fix != spec.orientation) {
@@ -372,14 +411,32 @@ fun AppScreen() {
 
             // ---------- Anteprima ----------
             preview?.let {
-                Text("Anteprima", fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (plan.isMultiPage) "Anteprima — pagina ${previewPage + 1} di ${plan.pageCount}"
+                        else "Anteprima",
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (plan.isMultiPage) {
+                        OutlinedIconButton(
+                            onClick = { previewPage-- },
+                            enabled = previewPage > 0
+                        ) { Text("‹") }
+                        Spacer(Modifier.width(8.dp))
+                        OutlinedIconButton(
+                            onClick = { previewPage++ },
+                            enabled = previewPage < plan.pageCount - 1
+                        ) { Text("›") }
+                    }
+                }
                 Image(
                     bitmap = it.asImageBitmap(),
                     contentDescription = "Anteprima della pagina A4",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(layout.pageWidthPt / layout.pageHeightPt)
+                        .aspectRatio(plan.first.pageWidthPt / plan.first.pageHeightPt)
                         .background(Color.White)
                 )
             }
@@ -389,9 +446,18 @@ fun AppScreen() {
             ChoiceRow(
                 labels = OutputFormat.entries.map { it.label },
                 selected = OutputFormat.entries.indexOf(format),
+                // i formati immagine non reggono più di una pagina
+                enabled = !plan.isMultiPage,
                 onSelect = { format = OutputFormat.entries[it] }
             )
-            Text(format.hint, style = MaterialTheme.typography.bodySmall)
+            Text(
+                if (plan.isMultiPage) {
+                    "Il piano occupa ${plan.pageCount} pagine: solo il PDF può contenerle tutte."
+                } else {
+                    format.hint
+                },
+                style = MaterialTheme.typography.bodySmall
+            )
 
             // La risoluzione riguarda solo i formati immagine: il PDF incorpora
             // i pixel originali e non ha una densità propria.
