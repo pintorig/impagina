@@ -6,8 +6,15 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Una push che ne supera un'altra sullo stesso ramo annulla la precedente:
+# non ha senso tenere occupato un runner per un commit già sorpassato.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  assemble-debug:
+  verify:
+    name: Test e analisi
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,24 +32,37 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      # I test girano per primi: se la geometria o il codec si rompono,
-      # un APK che compila non serve a niente.
-      - name: Run unit tests
+      # I test girano per primi: se la geometria, la curva tonale o il codec
+      # si rompono, un APK che compila non serve a niente.
+      - name: Unit test
         run: gradle test --stacktrace
 
-      - name: Publish test report
+      - name: Android Lint
+        run: gradle lintDebug --stacktrace
+
+      - name: Assemble debug APK
+        run: gradle assembleDebug --stacktrace
+
+      # always(): i report servono soprattutto quando qualcosa è fallito.
+      - name: Report dei test
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: app/build/reports/tests/
+          if-no-files-found: ignore
 
-      - name: Assemble debug APK
-        run: gradle assembleDebug --stacktrace
-
-      - name: Upload APK
+      - name: Report di Lint
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: documento-a4-debug
+          name: lint-results
+          path: app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+
+      - name: APK di debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: impagina-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error

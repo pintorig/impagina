@@ -362,6 +362,63 @@ filigrana però può contenere dati personali ("ad uso iscrizione di …"): vive
 nell'archivio privato dell'app, e `PresetStore.clear()` esiste per cancellarlo
 davvero.
 
+## Pipeline
+
+Quattro automazioni in `.github/`.
+
+| Workflow | Quando | Cosa fa |
+|---|---|---|
+| `build.yml` | push su `main`, ogni PR | test, Android Lint, APK di debug |
+| `release.yml` | tag `v*` | test, APK di release, GitHub Release |
+| `codeql.yml` | push, PR, lunedì | analisi di sicurezza del codice |
+| `dependabot.yml` | mensile | PR di aggiornamento dipendenze e action |
+
+I test girano **prima** della compilazione: se la geometria, la curva tonale o il
+codec dei preset si rompono, un APK che compila non serve a niente. I report di
+test e lint vengono pubblicati come artifact anche quando il job fallisce, che è
+esattamente quando servono.
+
+Una push che ne supera un'altra sullo stesso ramo annulla la precedente: nessun
+runner occupato per un commit già sorpassato.
+
+### Pubblicare una versione
+
+```bash
+git tag v1.9.0 && git push --tags
+```
+
+Il workflow estrae le note di rilascio dalla sezione corrispondente del
+[CHANGELOG](CHANGELOG.md) invece di farle riscrivere a mano — un changelog che
+nessuno legge è un changelog che smette di essere vero.
+
+**La firma è opzionale.** Senza secret configurati esce un APK non firmato,
+comunque installabile via `adb` per provarlo. Per averlo firmato servono quattro
+secret nelle impostazioni del repository:
+
+| Secret | Contenuto |
+|---|---|
+| `KEYSTORE_BASE64` | il keystore codificato: `base64 -w0 keystore.jks` |
+| `KEYSTORE_PASSWORD` | password del keystore |
+| `KEY_ALIAS` | alias della chiave |
+| `KEY_PASSWORD` | password della chiave |
+
+Il keystore non entra mai nel repository: `.gitignore` esclude `*.jks`,
+`*.keystore` e `keystore.properties`, e Gradle legge le credenziali da `-P`,
+mai da un file versionato.
+
+### Cosa manca di proposito
+
+Niente **ktlint** né **detekt**. Aggiungerli è un attimo, ma senza averli potuti
+eseguire sul codice esistente la pipeline nascerebbe rossa, e una CI rossa al
+primo push è una CI che si impara a ignorare. Il modo corretto è aggiungerli in
+locale, generare una baseline, sistemare quello che emerge e solo allora
+metterli in pipeline. `.editorconfig` c'è già e definisce le convenzioni.
+
+Manca anche la validazione del wrapper Gradle
+(`gradle/actions/wrapper-validation`), che ha senso aggiungere una volta
+committato `gradle-wrapper.jar`: serve a verificare che quel binario sia davvero
+quello ufficiale.
+
 ## Changelog
 
 Vedi [CHANGELOG.md](CHANGELOG.md).

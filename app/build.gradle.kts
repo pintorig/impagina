@@ -4,6 +4,10 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Firma opzionale: le credenziali arrivano da -P in CI, mai dal repository.
+// Senza di esse la release esce non firmata, che per provarla via adb basta.
+val keystoreFile = findProperty("KEYSTORE_FILE") as String?
+
 android {
     namespace = "it.example.idcard2a4"
     compileSdk = 35
@@ -16,8 +20,20 @@ android {
         versionName = "1.9.0"
     }
 
+    signingConfigs {
+        if (keystoreFile != null) {
+            create("release") {
+                storeFile = file(keystoreFile)
+                storePassword = findProperty("KEYSTORE_PASSWORD") as String?
+                keyAlias = findProperty("KEY_ALIAS") as String?
+                keyPassword = findProperty("KEY_PASSWORD") as String?
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -40,6 +56,17 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    lint {
+        // Gli errori bloccano, gli avvisi no: una CI che fallisce per un
+        // avviso stilistico smette di essere presa sul serio.
+        abortOnError = true
+        warningsAsErrors = false
+        // In CI l'analisi gira già su debug: rifarla in release raddoppia
+        // il tempo senza aggiungere segnale.
+        checkReleaseBuilds = false
+        htmlReport = true
     }
 
     packaging {
