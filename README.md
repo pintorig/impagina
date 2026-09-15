@@ -18,6 +18,7 @@ nessun permesso runtime richiesto.
 - Uscita in PDF, JPEG, PNG o WebP, con risoluzione e qualità selezionabili
 - Ricerca automatica della qualità massima sotto un tetto di peso
 - Da 1 a 12 facciate, impaginate su più fogli quando serve
+- Preset salvabili e ripristino automatico dell'ultima configurazione
 - Anteprima fedele: mostra il PDF davvero generato, non una simulazione
 - Salvataggio dove vuoi tramite Storage Access Framework
 
@@ -28,6 +29,30 @@ nessun permesso runtime richiesto.
 | Colore | nessuna alterazione | l'ente chiede la copia a colori |
 | Grigi | sola desaturazione | si vuole il bianco e nero senza toccare i toni |
 | Contrasto | auto-livelli sui grigi | resa da fotocopia, file più leggero |
+
+### Preset
+
+Tutte le impostazioni — documento, layout, filigrana, filtro, formato,
+risoluzione, qualità — si salvano con un nome e si riapplicano con un tocco. Fino
+a otto, con il più recente in testa.
+
+Più utile ancora: **l'ultima configurazione viene ripristinata all'avvio**. Chi
+ripete la stessa pratica non deve rimettere a mano formato, risoluzione e testo
+della filigrana ogni volta, che è la seccatura vera più che non avere preset con
+un nome.
+
+Il formato di salvataggio è fatto a mano: una riga per preset, campi
+`chiave=valore` separati da `;`. Niente `org.json`, che essendo API Android non
+sarebbe verificabile su JVM. Il prezzo è l'escaping, che va fatto bene: il testo
+della filigrana è input libero e contiene tranquillamente `=`, `;`, backslash o
+a capo. Un a capo non protetto spaccherebbe un record in due e si porterebbe
+dietro il preset successivo.
+
+La decodifica è deliberatamente **tollerante**: campi mancanti, valori numerici
+fuori scala e voci di `enum` non riconosciute ricadono sul default invece di far
+fallire il caricamento. Serve alla compatibilità nel tempo — un preset salvato
+oggi deve restare leggibile dopo che un `enum` avrà guadagnato o perso una voce.
+L'unico campo indispensabile è il nome.
 
 ### Riordino
 
@@ -187,6 +212,8 @@ documento-a4/
         │   ├── ImageFilters.kt     curva tonale e applicazione dei filtri
         │   ├── InputLoader.kt      foto e PDF → bitmap
         │   ├── PageRenderer.kt     disegno della pagina, condiviso da tutti i formati
+        │   ├── Preset.kt           configurazioni salvate e codec
+        │   ├── PresetStore.kt      persistenza su SharedPreferences
         │   ├── Reorder.kt          riordino delle facciate
         │   ├── DocumentExporter.kt PDF e rasterizzazione
         │   ├── OutputFormat.kt     formati, risoluzioni, conversione punti/pixel
@@ -282,7 +309,7 @@ cache prima di essere aperto.
 - [x] Qualità regolabile con peso reale e ricerca sotto tetto
 - [x] Layout multipagina oltre le quattro facciate
 - [x] Riordino delle facciate
-- [ ] Preset personalizzati salvabili dall'utente
+- [x] Preset personalizzati e ripristino dell'ultima configurazione
 
 ## Privacy
 
@@ -293,6 +320,11 @@ reporting con screenshot, quelle immagini finiscono fuori dal telefono e ti port
 dietro obblighi seri: valutalo prima di introdurre la dipendenza, non dopo.
 
 `android:allowBackup` è impostato a `false` proprio per questo.
+
+Su disco finiscono **solo impostazioni, mai le immagini**. Il testo della
+filigrana però può contenere dati personali ("ad uso iscrizione di …"): vive
+nell'archivio privato dell'app, e `PresetStore.clear()` esiste per cancellarlo
+davvero.
 
 ## Licenza
 

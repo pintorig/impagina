@@ -15,6 +15,7 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -59,9 +60,16 @@ fun AppScreen() {
 
     var spec by remember { mutableStateOf(LayoutSpec()) }
     var filter by remember { mutableStateOf(ImageFilter.NONE) }
-    var format by remember { mutableStateOf(OutputFormat.PDF) }
-    var resolution by remember { mutableStateOf(ExportResolution.STANDARD) }
-    var quality by remember { mutableIntStateOf(DEFAULT_QUALITY) }
+    var export by remember { mutableStateOf(ExportSpec()) }
+    // alias di sola lettura: il resto della schermata resta invariato
+    val format = export.format
+    val resolution = export.resolution
+    val quality = export.quality
+
+    val store = remember(ctx) { PresetStore(ctx) }
+    var presets by remember { mutableStateOf(emptyList<Preset>()) }
+    var namingPreset by remember { mutableStateOf(false) }
+    var presetName by remember { mutableStateOf("") }
     var exportResult by remember { mutableStateOf<ExportResult?>(null) }
     var weighing by remember { mutableStateOf(false) }
 
@@ -97,6 +105,15 @@ fun AppScreen() {
 
     fun moveSlot(from: Int, to: Int) {
         shots = Reorder.move(shots, from, to)
+    }
+
+    /** Applica una configurazione salvata senza toccare le facciate acquisite. */
+    fun applyPreset(preset: Preset) {
+        spec = preset.layout
+        filter = preset.filter
+        export = preset.export
+        shots = List(preset.layout.slotCount) { shots.getOrNull(it) }
+        previewPage = 0
     }
 
     fun ingest(index: Int, uri: Uri) = scope.launch {
@@ -203,14 +220,14 @@ fun AppScreen() {
 
     // Un'immagine non ha pagine: se il piano ne prevede più di una si torna al PDF.
     LaunchedEffect(plan.isMultiPage) {
-        if (plan.isMultiPage && format.isRaster) format = OutputFormat.PDF
+        if (plan.isMultiPage && format.isRaster) export = export.copy(format = OutputFormat.PDF)
     }
 
     // --- Peso reale del file, calcolato in sottofondo -----------------------
     // Chiave separata dall'anteprima: cambiare qualità o formato non impone di
     // ridisegnare l'anteprima, e cambiare layout non impone di ricomprimere
     // finché il debounce non scade.
-    LaunchedEffect(rendered, spec, format, resolution, quality) {
+    LaunchedEffect(rendered, spec, export) {
         exportResult = null
         if (rendered.none { it != null }) return@LaunchedEffect
         delay(400)
@@ -232,7 +249,7 @@ fun AppScreen() {
         }
         weighing = false
         if (fit != null) {
-            quality = fit.quality
+            export = export.copy(quality = fit.quality)
             if (!fit.withinTarget) {
                 Toast.makeText(
                     ctx,
@@ -242,6 +259,18 @@ fun AppScreen() {
                 ).show()
             }
         }
+    }
+
+    // --- Preset: caricamento all'avvio e memoria dell'ultima configurazione ---
+    LaunchedEffect(Unit) {
+        presets = store.load()
+        store.loadLast()?.let { applyPreset(it) }
+    }
+
+    LaunchedEffect(spec, filter, export) {
+        // Attesa breve: non si scrive su disco a ogni tasto della filigrana.
+        delay(600)
+        store.saveLast(store.lastFrom(spec, filter, export))
     }
 
     val type = spec.documentType
@@ -255,6 +284,32 @@ fun AppScreen() {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Spacer(Modifier.height(0.dp))
+
+            // ---------- Preset ----------
+            if (presets.isNotEmpty()) {
+                Text("Preset", fontWeight = FontWeight.SemiBold)
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    presets.forEach { preset ->
+                        InputChip(
+                            selected = false,
+                            onClick = { applyPreset(preset) },
+                            label = { Text(preset.name) },
+                            trailingIcon = {
+                                Text(
+                                    "×",
+                                    modifier = Modifier.clickable {
+                                        presets = PresetCodec.remove(presets, preset.name)
+                                        store.save(presets)
+                                    }
+                                )
+                            }
+                        )
+                    }
+                }
+            }
 
             // ---------- Tipo di documento ----------
             Text("Documento", fontWeight = FontWeight.SemiBold)
@@ -472,7 +527,7 @@ fun AppScreen() {
                 selected = OutputFormat.entries.indexOf(format),
                 // i formati immagine non reggono più di una pagina
                 enabled = !plan.isMultiPage,
-                onSelect = { format = OutputFormat.entries[it] }
+                onSelect = { export = export.copy(format = OutputFormat.entries[it]) }
             )
             Text(
                 if (plan.isMultiPage) {
@@ -489,7 +544,7 @@ fun AppScreen() {
                 ChoiceRow(
                     labels = ExportResolution.entries.map { it.label },
                     selected = ExportResolution.entries.indexOf(resolution),
-                    onSelect = { resolution = ExportResolution.entries[it] }
+                    onSelect = { export = export.copy(resolution = ExportResolution.entries[it]) }
                 )
                 Text(resolution.hint, style = MaterialTheme.typography.bodySmall)
             }
@@ -498,7 +553,7 @@ fun AppScreen() {
                 Text("Qualità $quality", style = MaterialTheme.typography.bodyMedium)
                 Slider(
                     value = quality.toFloat(),
-                    onValueChange = { quality = it.toInt() },
+                    onValueChange = { export = export.copy(quality = it.toInt()) },
                     valueRange = QUALITY_MIN.toFloat()..QUALITY_MAX.toFloat(),
                     steps = QUALITY_STEPS.size - 2,
                     modifier = Modifier.fillMaxWidth()
@@ -537,14 +592,60 @@ fun AppScreen() {
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Salva ${format.label}") }
 
+            TextButton(
+                onClick = { presetName = ""; namingPreset = true },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Salva queste impostazioni come preset") }
+
             if (busy || filtering || weighing) LinearProgressIndicator(Modifier.fillMaxWidth())
 
             Text(
-                "Tutta l'elaborazione avviene sul dispositivo: nessuna immagine viene inviata in rete.",
+                "Tutta l'elaborazione avviene sul dispositivo: nessuna immagine viene inviata in rete. " +
+                    "I preset contengono solo impostazioni, mai le scansioni.",
                 style = MaterialTheme.typography.bodySmall
             )
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (namingPreset) {
+        AlertDialog(
+            onDismissRequest = { namingPreset = false },
+            title = { Text("Nuovo preset") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = presetName,
+                        onValueChange = { presetName = it },
+                        label = { Text("Nome") },
+                        singleLine = true
+                    )
+                    if (presets.size >= PresetCodec.MAX_PRESETS) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Sono già ${PresetCodec.MAX_PRESETS}: il più vecchio verrà scartato.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = presetName.isNotBlank(),
+                    onClick = {
+                        presets = PresetCodec.upsert(
+                            presets,
+                            Preset(presetName, spec, filter, export)
+                        )
+                        store.save(presets)
+                        namingPreset = false
+                    }
+                ) { Text("Salva") }
+            },
+            dismissButton = {
+                TextButton(onClick = { namingPreset = false }) { Text("Annulla") }
+            }
+        )
     }
 }
 
