@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Tema di piattaforma minimale: l'aspetto reale lo definisce MaterialTheme
+      in Compose. Così evitiamo la dipendenza da com.google.android.material.
+    -->
+    <style name="Theme.DocumentoA4" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

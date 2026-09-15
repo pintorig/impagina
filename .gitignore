@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+build/
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Build output
+*.apk
+*.aab
+*.ap_
+*.dex
+output.json
+
+# Firma (NON committare mai keystore o credenziali)
+*.jks
+*.keystore
+keystore.properties
+
+# macOS / Linux
+.DS_Store
+*~
