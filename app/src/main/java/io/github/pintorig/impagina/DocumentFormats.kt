@@ -1,4 +1,4 @@
-package it.example.idcard2a4
+package io.github.pintorig.impagina
 
 import kotlin.math.ceil
 import kotlin.math.floor

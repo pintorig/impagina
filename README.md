@@ -191,7 +191,7 @@ invece la stampa 1:1 è possibile. Mai un ritaglio, mai una deformazione.
 ## Avvio rapido
 
 ```bash
-git clone https://github.com/<utente>/impagina.git
+git clone https://github.com/pintorig/impagina.git
 cd impagina
 ```
 
@@ -217,7 +217,7 @@ la stessa versione di Gradle.
 ## Struttura
 
 ```
-documento-a4/
+impagina/
 ├── .github/workflows/build.yml     CI: compila l'APK debug e lo pubblica come artifact
 ├── gradle/libs.versions.toml       version catalog, tutte le versioni in un posto
 ├── settings.gradle.kts
@@ -227,7 +227,7 @@ documento-a4/
     ├── proguard-rules.pro
     └── src/main/
         ├── AndroidManifest.xml
-        ├── java/it/example/idcard2a4/
+        ├── java/io.github.pintorig.impagina/
         │   ├── DocumentFormats.kt  formati, specifica e matematica dei layout
         │   ├── ImageFilters.kt     curva tonale e applicazione dei filtri
         │   ├── InputLoader.kt      foto e PDF → bitmap

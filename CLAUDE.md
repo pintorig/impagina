@@ -220,7 +220,7 @@ dopo una scelta ragionata.
 altre due occorrenze sono `settings.gradle.kts` e il titolo del README. Erano
 stati valutati anche *Bifronte*, *Ricomponi* e *Unifoglio*.
 
-**`applicationId` è ancora `it.example.idcard2a4`.** Va cambiato prima di
+**`applicationId` è ancora `io.github.pintorig.impagina`.** Va cambiato prima di
 pubblicare: dopo il primo upload sul Play Store è **definitivo**. Usa un
 reverse-domain che controlli davvero.
 

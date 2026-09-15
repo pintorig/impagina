@@ -1,4 +1,4 @@
-package it.example.idcard2a4
+package io.github.pintorig.impagina
 
 import android.content.Context
 

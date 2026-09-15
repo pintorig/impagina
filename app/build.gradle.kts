@@ -9,11 +9,11 @@ plugins {
 val keystoreFile = findProperty("KEYSTORE_FILE") as String?
 
 android {
-    namespace = "it.example.idcard2a4"
+    namespace = "io.github.pintorig.impagina"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "it.example.idcard2a4"
+        applicationId = "io.github.pintorig.impagina"
         minSdk = 28          // ImageDecoder con gestione EXIF automatica
         targetSdk = 35
         versionCode = 10

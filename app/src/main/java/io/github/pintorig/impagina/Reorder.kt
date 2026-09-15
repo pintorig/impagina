@@ -1,4 +1,4 @@
-package it.example.idcard2a4
+package io.github.pintorig.impagina
 
 /**
  * Riordino delle facciate.
