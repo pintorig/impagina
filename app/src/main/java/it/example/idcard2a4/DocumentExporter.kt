@@ -32,6 +32,7 @@ object DocumentExporter {
         spec: LayoutSpec,
         format: OutputFormat,
         resolution: ExportResolution,
+        quality: Int = DEFAULT_QUALITY,
         today: String = today()
     ): ExportResult {
         require(images.any { it != null }) { "Serve almeno una facciata" }
@@ -44,17 +45,55 @@ object DocumentExporter {
                 bytes = out.toByteArray(),
                 format = format,
                 pixelWidth = layout.pageWidthPt.roundToInt(),
-                pixelHeight = layout.pageHeightPt.roundToInt()
+                pixelHeight = layout.pageHeightPt.roundToInt(),
+                quality = null
             )
         } else {
             val bitmap = rasterize(images, layout, spec.watermark, today, resolution.dpi)
             try {
                 val out = ByteArrayOutputStream()
-                bitmap.compress(compressFormatFor(format), LOSSY_QUALITY, out)
-                ExportResult(out.toByteArray(), format, bitmap.width, bitmap.height)
+                bitmap.compress(compressFormatFor(format), quality, out)
+                // il PNG ignora il parametro: riportarlo nel riepilogo sarebbe fuorviante
+                ExportResult(
+                    out.toByteArray(), format, bitmap.width, bitmap.height,
+                    quality.takeIf { format.isLossy }
+                )
             } finally {
                 bitmap.recycle()
             }
+        }
+    }
+
+    /**
+     * Cerca la qualità più alta che stia sotto il tetto di peso indicato.
+     *
+     * La pagina si rasterizza una volta sola e poi si ricomprime a qualità
+     * diverse: il disegno è la parte cara, la compressione no. Insieme alla
+     * ricerca binaria significa un rendering e quattro compressioni, invece di
+     * tredici rendering completi.
+     */
+    fun fitQuality(
+        images: List<Bitmap?>,
+        spec: LayoutSpec,
+        format: OutputFormat,
+        resolution: ExportResolution,
+        targetBytes: Int,
+        today: String = today()
+    ): QualityFit {
+        require(format.isLossy) { "La qualità riguarda solo i formati con perdita" }
+        require(images.any { it != null }) { "Serve almeno una facciata" }
+
+        val layout = PageLayouts.compute(spec.copy(slotCount = images.size))
+        val bitmap = rasterize(images, layout, spec.watermark, today, resolution.dpi)
+        val compressFormat = compressFormatFor(format)
+        try {
+            return QualitySearch.highestUnder(targetBytes) { q ->
+                val out = ByteArrayOutputStream()
+                bitmap.compress(compressFormat, q, out)
+                out.size()
+            }
+        } finally {
+            bitmap.recycle()
         }
     }
 

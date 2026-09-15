@@ -14,7 +14,8 @@ nessun permesso runtime richiesto.
 - Rotazione a 90° per raddrizzare uno scatto storto
 - Filtro di resa: colore, scala di grigi, alto contrasto
 - Filigrana a testo libero, in fondo al foglio o in diagonale
-- Uscita in PDF, JPEG, PNG o WebP, con risoluzione selezionabile
+- Uscita in PDF, JPEG, PNG o WebP, con risoluzione e qualità selezionabili
+- Ricerca automatica della qualità massima sotto un tetto di peso
 - Anteprima fedele: mostra il PDF davvero generato, non una simulazione
 - Salvataggio dove vuoi tramite Storage Access Framework
 
@@ -40,8 +41,19 @@ La risoluzione (150 / 200 / 300 dpi) compare solo per i formati immagine, e non
 dimensione originale e le scala in fase di stampa. A 300 dpi un A4 misura
 2479 × 3508 pixel, a 150 dpi 1240 × 1754.
 
-Dopo il salvataggio l'app riporta formato, pixel e peso reale del file — serve a
-chi deve rientrare in un limite di caricamento senza tirare a indovinare.
+### Qualità e peso
+
+Per JPEG e WebP compare uno slider di qualità da 40 a 100 a passi di 5. Il peso
+mostrato sotto i controlli è **reale**, non stimato: viene calcolato comprimendo
+davvero la pagina in sottofondo, con un debounce di 400 ms. Quegli stessi byte
+vengono poi scritti al salvataggio, quindi il conto non si fa due volte.
+
+La parte utile però sono i tetti di peso. Toccando `≤ 1 MB` l'app cerca la
+qualità più alta che ci sta sotto. Il peso di un JPEG cresce in modo monotono con
+la qualità, quindi basta una ricerca binaria sulla griglia: la pagina si
+rasterizza una volta e si ricomprime quattro volte, invece di tredici rendering
+completi. Se nemmeno alla qualità minima si rientra, l'app lo dice e suggerisce
+di abbassare la risoluzione, invece di restituire un errore.
 
 ### Filigrana
 
@@ -172,6 +184,12 @@ un foglio grande come un manifesto.
 125 × 88 mm (ISO/IEC 7810). Stampato 1:1, il risultato è indistinguibile da una
 fotocopia, che è quello che gli uffici si aspettano.
 
+**Il peso non si stima, si misura.** Estrapolare la dimensione di un JPEG da un
+provino a bassa risoluzione sbaglia facilmente del 15%, ed è esattamente lo
+scarto che fa sforare un limite di caricamento fissato a 2 MB. Comprimere sul
+serio costa qualche centinaio di millisecondi, li si spende in sottofondo, e il
+numero mostrato è quello che finirà sul disco.
+
 **Un solo punto di disegno.** `PageRenderer.drawPage()` lavora sempre in punti
 PostScript e riceve un `Canvas` qualsiasi. Il PDF gli passa il canvas della
 pagina; i formati immagine gli passano un canvas su bitmap scalato di `dpi / 72`.
@@ -222,7 +240,7 @@ cache prima di essere aperto.
 - [x] Filtro bianco/nero con curva di contrasto
 - [x] Filigrana a testo configurabile
 - [x] Uscita in formati immagine oltre al PDF
-- [ ] Qualità JPEG regolabile con stima del peso in tempo reale
+- [x] Qualità regolabile con peso reale e ricerca sotto tetto
 - [ ] Layout multipagina per documenti oltre quattro facciate
 - [ ] Preset personalizzati salvabili dall'utente
 

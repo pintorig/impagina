@@ -84,4 +84,91 @@ class ExportTest {
         assertEquals(dpis.sorted(), dpis)
         assertTrue(dpis.all { it in 72..600 })
     }
+
+    /* --- Qualità ------------------------------------------------------- */
+
+    /** Curva peso/qualità plausibile: monotona e più ripida verso l'alto. */
+    private fun jpegSize(q: Int): Int {
+        val t = (q - QUALITY_MIN) / (QUALITY_MAX - QUALITY_MIN).toDouble()
+        return (120_000 * (1 + t * t * 9)).toInt()
+    }
+
+    @Test
+    fun `la qualita ha senso solo per i formati con perdita`() {
+        assertTrue(OutputFormat.JPEG.isLossy)
+        assertTrue(OutputFormat.WEBP.isLossy)
+        assertFalse(OutputFormat.PNG.isLossy)
+        assertFalse(OutputFormat.PDF.isLossy)
+    }
+
+    @Test
+    fun `la griglia di qualita e regolare e crescente`() {
+        assertEquals(QUALITY_MIN, QUALITY_STEPS.first())
+        assertEquals(QUALITY_MAX, QUALITY_STEPS.last())
+        assertEquals(QUALITY_STEPS.sorted(), QUALITY_STEPS)
+        QUALITY_STEPS.zipWithNext { a, b -> assertEquals(QUALITY_STEP, b - a) }
+        assertTrue(DEFAULT_QUALITY in QUALITY_STEPS)
+    }
+
+    @Test
+    fun `i tetti di peso proposti sono crescenti`() {
+        assertEquals(SIZE_TARGETS.sorted(), SIZE_TARGETS)
+    }
+
+    @Test
+    fun `sceglie la qualita piu alta che rientra nel tetto`() {
+        val target = 500 * 1024
+        val fit = QualitySearch.highestUnder(target, sizeAt = ::jpegSize)
+        val expected = QUALITY_STEPS.filter { jpegSize(it) <= target }.max()
+        assertEquals(expected, fit.quality)
+        assertTrue(fit.withinTarget)
+        assertTrue(fit.sizeBytes <= target)
+    }
+
+    @Test
+    fun `con un tetto generoso sceglie la qualita massima`() {
+        val fit = QualitySearch.highestUnder(Int.MAX_VALUE, sizeAt = ::jpegSize)
+        assertEquals(QUALITY_MAX, fit.quality)
+        assertTrue(fit.withinTarget)
+    }
+
+    @Test
+    fun `con un tetto irraggiungibile ripiega sul minimo senza fallire`() {
+        val fit = QualitySearch.highestUnder(1, sizeAt = ::jpegSize)
+        assertEquals(QUALITY_MIN, fit.quality)
+        assertFalse(fit.withinTarget)
+        assertEquals(jpegSize(QUALITY_MIN), fit.sizeBytes)
+    }
+
+    @Test
+    fun `nessuna qualita viene compressa due volte`() {
+        val seen = mutableListOf<Int>()
+        QualitySearch.highestUnder(1) { q -> seen += q; jpegSize(q) }
+        assertEquals(seen.distinct(), seen)
+    }
+
+    @Test
+    fun `la ricerca binaria evita di provare tutti i valori`() {
+        val seen = mutableListOf<Int>()
+        QualitySearch.highestUnder(600 * 1024) { q -> seen += q; jpegSize(q) }
+        assertTrue("compressioni: ${seen.size}", seen.size <= 5)
+        assertTrue(QUALITY_STEPS.size > 10)
+    }
+
+    @Test
+    fun `una griglia con un solo valore non manda in errore la ricerca`() {
+        val fit = QualitySearch.highestUnder(1, steps = listOf(70)) { jpegSize(it) }
+        assertEquals(70, fit.quality)
+        assertFalse(fit.withinTarget)
+    }
+
+    @Test
+    fun `il riepilogo riporta la qualita quando ha senso`() {
+        val jpeg = ExportResult(ByteArray(2048), OutputFormat.JPEG, 1653, 2339, 75)
+        assertEquals("JPEG 1653×2339 q75, 2 kB", jpeg.summary)
+
+        val png = ExportResult(ByteArray(2048), OutputFormat.PNG, 1653, 2339, null)
+        assertEquals("PNG 1653×2339, 2 kB", png.summary)
+    }
 }
+

@@ -61,6 +61,9 @@ fun AppScreen() {
     var filter by remember { mutableStateOf(ImageFilter.NONE) }
     var format by remember { mutableStateOf(OutputFormat.PDF) }
     var resolution by remember { mutableStateOf(ExportResolution.STANDARD) }
+    var quality by remember { mutableIntStateOf(DEFAULT_QUALITY) }
+    var exportResult by remember { mutableStateOf<ExportResult?>(null) }
+    var weighing by remember { mutableStateOf(false) }
 
     // `shots` resta la sorgente intatta; `rendered` è la versione filtrata che
     // finisce nell'anteprima e nel PDF. Cambiare filtro non degrada l'originale.
@@ -134,7 +137,10 @@ fun AppScreen() {
             busy = true
             runCatching {
                 withContext(Dispatchers.IO) {
-                    val result = DocumentExporter.export(rendered, spec, format, resolution)
+                    // se il peso è già stato calcolato, quei byte sono il file:
+                    // non c'è motivo di rigenerarli
+                    val result = exportResult
+                        ?: DocumentExporter.export(rendered, spec, format, resolution, quality)
                     ctx.contentResolver.openOutputStream(uri)!!.use { it.write(result.bytes) }
                     result
                 }
@@ -163,6 +169,44 @@ fun AppScreen() {
         delay(250)
         preview = withContext(Dispatchers.IO) {
             runCatching { DocumentExporter.renderPreview(rendered, spec) }.getOrNull()
+        }
+    }
+
+    // --- Peso reale del file, calcolato in sottofondo -----------------------
+    // Chiave separata dall'anteprima: cambiare qualità o formato non impone di
+    // ridisegnare l'anteprima, e cambiare layout non impone di ricomprimere
+    // finché il debounce non scade.
+    LaunchedEffect(rendered, spec, format, resolution, quality) {
+        exportResult = null
+        if (rendered.none { it != null }) return@LaunchedEffect
+        delay(400)
+        weighing = true
+        exportResult = withContext(Dispatchers.IO) {
+            runCatching {
+                DocumentExporter.export(rendered, spec, format, resolution, quality)
+            }.getOrNull()
+        }
+        weighing = false
+    }
+
+    fun fitToTarget(targetBytes: Int) = scope.launch {
+        weighing = true
+        val fit = withContext(Dispatchers.IO) {
+            runCatching {
+                DocumentExporter.fitQuality(rendered, spec, format, resolution, targetBytes)
+            }.getOrNull()
+        }
+        weighing = false
+        if (fit != null) {
+            quality = fit.quality
+            if (!fit.withinTarget) {
+                Toast.makeText(
+                    ctx,
+                    "Nemmeno alla qualità minima si scende sotto ${Sizes.format(targetBytes)}: " +
+                        "prova ad abbassare la risoluzione.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 
@@ -360,13 +404,50 @@ fun AppScreen() {
                 Text(resolution.hint, style = MaterialTheme.typography.bodySmall)
             }
 
+            if (format.isLossy) {
+                Text("Qualità $quality", style = MaterialTheme.typography.bodyMedium)
+                Slider(
+                    value = quality.toFloat(),
+                    onValueChange = { quality = it.toInt() },
+                    valueRange = QUALITY_MIN.toFloat()..QUALITY_MAX.toFloat(),
+                    steps = QUALITY_STEPS.size - 2,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "Sotto 60 gli artefatti iniziano a intaccare i caratteri piccoli.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SIZE_TARGETS.forEach { target ->
+                        AssistChip(
+                            enabled = !weighing && rendered.any { it != null },
+                            onClick = { fitToTarget(target) },
+                            label = { Text("≤ ${Sizes.format(target)}") }
+                        )
+                    }
+                }
+            }
+
+            Text(
+                when {
+                    weighing -> "Calcolo del peso…"
+                    exportResult != null -> "Peso del file: ${exportResult!!.sizeLabel}"
+                    else -> "Peso del file: —"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
             Button(
                 onClick = { saveFile.launch(format.mimeType to suggestedFileName(type, format)) },
                 enabled = rendered.any { it != null } && !busy && !filtering,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Salva ${format.label}") }
 
-            if (busy || filtering) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (busy || filtering || weighing) LinearProgressIndicator(Modifier.fillMaxWidth())
 
             Text(
                 "Tutta l'elaborazione avviene sul dispositivo: nessuna immagine viene inviata in rete.",

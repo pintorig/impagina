@@ -32,6 +32,9 @@ enum class OutputFormat(
 
     /** Il PDF è un contenitore di pagina; gli altri sono immagini rasterizzate. */
     val isRaster: Boolean get() = this != PDF
+
+    /** Solo per questi la qualità ha un significato: PNG e PDF non perdono nulla. */
+    val isLossy: Boolean get() = this == JPEG || this == WEBP
 }
 
 /**
@@ -44,8 +47,21 @@ enum class ExportResolution(val label: String, val dpi: Int, val hint: String) {
     PRINT("300 dpi", 300, "Qualità di stampa piena. File sensibilmente più pesante.")
 }
 
-/** Qualità di compressione per i formati con perdita. */
-const val LOSSY_QUALITY = 88
+/* --- Qualità di compressione, per i soli formati con perdita --- */
+
+const val QUALITY_MIN = 40
+const val QUALITY_MAX = 100
+const val QUALITY_STEP = 5
+
+/** Valori selezionabili. Una griglia discreta rende la ricerca automatica
+ *  deterministica e i test riproducibili. */
+val QUALITY_STEPS: List<Int> = (QUALITY_MIN..QUALITY_MAX step QUALITY_STEP).toList()
+
+/** Sotto questa soglia gli artefatti iniziano a intaccare i caratteri piccoli. */
+const val DEFAULT_QUALITY = 85
+
+/** Tetti di peso proposti, calibrati sui limiti abituali dei portali. */
+val SIZE_TARGETS: List<Int> = listOf(500 * 1024, 1024 * 1024, 2 * 1024 * 1024, 5 * 1024 * 1024)
 
 /* =========================================================================
  *  Risultato e formattazione
@@ -55,15 +71,18 @@ class ExportResult(
     val bytes: ByteArray,
     val format: OutputFormat,
     val pixelWidth: Int,
-    val pixelHeight: Int
+    val pixelHeight: Int,
+    /** Qualità usata, `null` per i formati che non la prevedono. */
+    val quality: Int? = null
 ) {
     val sizeLabel: String get() = Sizes.format(bytes.size)
 
     /** Descrizione compatta da mostrare dopo il salvataggio. */
-    val summary: String get() = if (format.isRaster) {
-        "${format.label} ${pixelWidth}×${pixelHeight}, $sizeLabel"
-    } else {
-        "${format.label}, $sizeLabel"
+    val summary: String get() = buildString {
+        append(format.label)
+        if (format.isRaster) append(" ${pixelWidth}×${pixelHeight}")
+        if (quality != null) append(" q$quality")
+        append(", $sizeLabel")
     }
 }
 
@@ -88,4 +107,60 @@ object Raster {
     /** Densità che porta il lato lungo della pagina al numero di pixel voluto. */
     fun dpiForLongSide(longSidePt: Float, targetPx: Int): Int =
         (targetPx * 72f / longSidePt).roundToInt().coerceAtLeast(1)
+}
+
+/* =========================================================================
+ *  Ricerca della qualità sotto un tetto di peso
+ * ========================================================================= */
+
+/** Esito della ricerca: la qualità scelta, il peso ottenuto, e se il tetto è stato rispettato. */
+data class QualityFit(val quality: Int, val sizeBytes: Int, val withinTarget: Boolean)
+
+object QualitySearch {
+
+    /**
+     * Qualità più alta che sta sotto `targetBytes`.
+     *
+     * Il peso di un JPEG cresce in modo monotono con la qualità, quindi basta
+     * una ricerca binaria sulla griglia: quattro compressioni invece di tredici.
+     * Se nemmeno il valore minimo rientra, restituisce comunque il minimo con
+     * `withinTarget = false` — meglio un file un po' troppo pesante che nessun
+     * file e un messaggio di errore.
+     */
+    fun highestUnder(
+        targetBytes: Int,
+        steps: List<Int> = QUALITY_STEPS,
+        sizeAt: (Int) -> Int
+    ): QualityFit {
+        require(steps.isNotEmpty()) { "Serve almeno un valore di qualità" }
+        val ordered = steps.sorted()
+
+        // Il ripiego rimisurerebbe un valore già provato: una memoizzazione
+        // minima lo evita, e in un test rende verificabile che ogni qualità
+        // venga compressa una volta sola.
+        val measured = HashMap<Int, Int>()
+        val measure: (Int) -> Int = { q -> measured.getOrPut(q) { sizeAt(q) } }
+
+        var low = 0
+        var high = ordered.lastIndex
+        var bestIndex = -1
+        var bestSize = -1
+
+        while (low <= high) {
+            val mid = (low + high) / 2
+            val size = measure(ordered[mid])
+            if (size <= targetBytes) {
+                bestIndex = mid
+                bestSize = size
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+
+        if (bestIndex >= 0) return QualityFit(ordered[bestIndex], bestSize, true)
+
+        val fallback = ordered.first()
+        return QualityFit(fallback, measure(fallback), false)
+    }
 }
