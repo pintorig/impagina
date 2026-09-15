@@ -14,6 +14,7 @@ nessun permesso runtime richiesto.
 - Rotazione a 90° per raddrizzare uno scatto storto
 - Filtro di resa: colore, scala di grigi, alto contrasto
 - Filigrana a testo libero, in fondo al foglio o in diagonale
+- Uscita in PDF, JPEG, PNG o WebP, con risoluzione selezionabile
 - Anteprima fedele: mostra il PDF davvero generato, non una simulazione
 - Salvataggio dove vuoi tramite Storage Access Framework
 
@@ -24,6 +25,23 @@ nessun permesso runtime richiesto.
 | Colore | nessuna alterazione | l'ente chiede la copia a colori |
 | Grigi | sola desaturazione | si vuole il bianco e nero senza toccare i toni |
 | Contrasto | auto-livelli sui grigi | resa da fotocopia, file più leggero |
+
+### Formati di uscita
+
+| Formato | Quando |
+|---|---|
+| PDF | stampa e archiviazione; conserva i pixel originali e la scala esatta |
+| JPEG | il più accettato dai portali di caricamento |
+| PNG | senza perdita; leggerissimo con il filtro Contrasto, pesante a colori |
+| WebP | circa un terzo più leggero del JPEG, non sempre accettato |
+
+La risoluzione (150 / 200 / 300 dpi) compare solo per i formati immagine, e non
+è una svista: il PDF non ha una densità propria, incorpora le immagini alla loro
+dimensione originale e le scala in fase di stampa. A 300 dpi un A4 misura
+2479 × 3508 pixel, a 150 dpi 1240 × 1754.
+
+Dopo il salvataggio l'app riporta formato, pixel e peso reale del file — serve a
+chi deve rientrare in un limite di caricamento senza tirare a indovinare.
 
 ### Filigrana
 
@@ -118,7 +136,9 @@ documento-a4/
         │   ├── DocumentFormats.kt  formati, specifica e matematica dei layout
         │   ├── ImageFilters.kt     curva tonale e applicazione dei filtri
         │   ├── InputLoader.kt      foto e PDF → bitmap
-        │   ├── PdfPageComposer.kt  disegno della pagina A4
+        │   ├── PageRenderer.kt     disegno della pagina, condiviso da tutti i formati
+        │   ├── DocumentExporter.kt PDF e rasterizzazione
+        │   ├── OutputFormat.kt     formati, risoluzioni, conversione punti/pixel
         │   ├── Watermark.kt        modello della filigrana e gestione del testo
         │   └── MainActivity.kt     UI Compose, picker, scanner, salvataggio
         └── res/
@@ -151,6 +171,13 @@ un foglio grande come un manifesto.
 **La dimensione reale è il default.** ID-1 è 85,60 × 53,98 mm, ID-3 è
 125 × 88 mm (ISO/IEC 7810). Stampato 1:1, il risultato è indistinguibile da una
 fotocopia, che è quello che gli uffici si aspettano.
+
+**Un solo punto di disegno.** `PageRenderer.drawPage()` lavora sempre in punti
+PostScript e riceve un `Canvas` qualsiasi. Il PDF gli passa il canvas della
+pagina; i formati immagine gli passano un canvas su bitmap scalato di `dpi / 72`.
+Il JPEG è quindi la rasterizzazione esatta della stessa pagina che finirebbe nel
+PDF, e non esiste una seconda implementazione che possa andare fuori sincrono.
+Anche l'anteprima passa di lì, a densità bassa.
 
 **Niente binarizzazione.** La scelta ovvia per un filtro bianco/nero sarebbe la
 soglia: ogni pixel diventa 0 o 255. Su un documento d'identità è una pessima
@@ -194,7 +221,8 @@ cache prima di essere aperto.
 - [x] Pulizia di `cacheDir` in `onDestroy()`
 - [x] Filtro bianco/nero con curva di contrasto
 - [x] Filigrana a testo configurabile
-- [ ] Ricompressione JPEG a qualità configurabile
+- [x] Uscita in formati immagine oltre al PDF
+- [ ] Qualità JPEG regolabile con stima del peso in tempo reale
 - [ ] Layout multipagina per documenti oltre quattro facciate
 - [ ] Preset personalizzati salvabili dall'utente
 

@@ -1,35 +1,25 @@
 package it.example.idcard2a4
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
-import android.graphics.pdf.PdfDocument
-import java.io.File
-import java.io.OutputStream
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.min
-import kotlin.math.roundToInt
 
 /**
- * Disegna le facciate acquisite su una singola pagina A4, secondo un
- * [PageLayout] già calcolato.
+ * Disegna una pagina su un [Canvas] qualsiasi, lavorando sempre in punti
+ * PostScript.
  *
- * La pagina si crea in punti PostScript (595 × 842), non in pixel: il backend
- * PDF di Android incorpora il bitmap come immagine e gli applica solo una
- * trasformazione, quindi i pixel originali della foto arrivano intatti nel file.
- * Una pagina "a 300 dpi" produrrebbe un foglio grande come un manifesto.
+ * È il punto unico di disegno: ci passano sia il PDF sia i formati immagine.
+ * Per rasterizzare basta applicare al canvas una scala `dpi / 72`, così PDF e
+ * JPEG non possono divergere — non esiste una seconda implementazione che possa
+ * andare fuori sincrono.
  */
-object PdfPageComposer {
-
-    private val DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ITALY)
+object PageRenderer {
 
     // --- filigrana in fondo ---
     private const val BELOW_MAX_PT = 10f
@@ -42,72 +32,37 @@ object PdfPageComposer {
     private const val DIAGONAL_MAX_PT = 90f
     private const val DIAGONAL_ALPHA = 56         // su 255: leggibile sotto, visibile sopra
 
-    /** Scrive un PDF di una sola pagina. Le immagini `null` lasciano lo slot vuoto. */
-    fun writeTo(
-        out: OutputStream,
+    fun drawPage(
+        canvas: Canvas,
         images: List<Bitmap?>,
-        spec: LayoutSpec,
-        today: String = LocalDate.now().format(DATE_FORMAT)
-    ): PageLayout {
-        require(images.any { it != null }) { "Serve almeno una facciata" }
+        layout: PageLayout,
+        watermark: Watermark,
+        today: String
+    ) {
+        canvas.drawColor(Color.WHITE)
 
-        val layout = PageLayouts.compute(spec.copy(slotCount = images.size))
-
-        val doc = PdfDocument()
-        try {
-            val info = PdfDocument.PageInfo.Builder(
-                layout.pageWidthPt.roundToInt(),
-                layout.pageHeightPt.roundToInt(),
-                1
-            ).create()
-
-            val page = doc.startPage(info)
-            val canvas = page.canvas
-            canvas.drawColor(Color.WHITE)
-
-            val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
-                isDither = true
-            }
-            val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.rgb(0x60, 0x60, 0x60)
-                textAlign = Paint.Align.CENTER
-                typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-                textSize = (layout.labelHeightPt * 0.62f).coerceAtLeast(6f)
-            }
-
-            images.forEachIndexed { i, bmp ->
-                val slot = layout.slots.getOrNull(i) ?: return@forEachIndexed
-                if (bmp != null) drawFitted(canvas, bmp, slot, imagePaint)
-                if (layout.labelHeightPt > 0f) {
-                    val text = layout.labels.getOrNull(i).orEmpty()
-                    val baseline = slot.bottom + layout.labelHeightPt * 0.72f
-                    canvas.drawText(text, slot.centerX, baseline, labelPaint)
-                }
-            }
-
-            // La filigrana va per ultima: deve stare sopra al documento, non sotto.
-            if (spec.watermark.isActive) {
-                drawWatermark(canvas, layout, spec.watermark, today)
-            }
-
-            doc.finishPage(page)
-            doc.writeTo(out)
-        } finally {
-            doc.close()
+        val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+            isDither = true
         }
-        return layout
-    }
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(0x60, 0x60, 0x60)
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+            textSize = (layout.labelHeightPt * 0.62f).coerceAtLeast(6f)
+        }
 
-    /** Genera in cache: serve all'anteprima, che rasterizza il PDF reale. */
-    fun writeToCache(
-        ctx: Context,
-        images: List<Bitmap?>,
-        spec: LayoutSpec,
-        name: String = "anteprima.pdf"
-    ): File {
-        val f = File(ctx.cacheDir, name)
-        f.outputStream().use { writeTo(it, images, spec) }
-        return f
+        images.forEachIndexed { i, bmp ->
+            val slot = layout.slots.getOrNull(i) ?: return@forEachIndexed
+            if (bmp != null) drawFitted(canvas, bmp, slot, imagePaint)
+            if (layout.labelHeightPt > 0f) {
+                val text = layout.labels.getOrNull(i).orEmpty()
+                val baseline = slot.bottom + layout.labelHeightPt * 0.72f
+                canvas.drawText(text, slot.centerX, baseline, labelPaint)
+            }
+        }
+
+        // La filigrana va per ultima: deve stare sopra al documento, non sotto.
+        if (watermark.isActive) drawWatermark(canvas, layout, watermark, today)
     }
 
     /**

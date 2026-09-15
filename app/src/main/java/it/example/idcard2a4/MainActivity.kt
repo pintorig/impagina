@@ -1,6 +1,8 @@
 package it.example.idcard2a4
 
 import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
@@ -9,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -56,6 +59,8 @@ fun AppScreen() {
 
     var spec by remember { mutableStateOf(LayoutSpec()) }
     var filter by remember { mutableStateOf(ImageFilter.NONE) }
+    var format by remember { mutableStateOf(OutputFormat.PDF) }
+    var resolution by remember { mutableStateOf(ExportResolution.STANDARD) }
 
     // `shots` resta la sorgente intatta; `rendered` è la versione filtrata che
     // finisce nell'anteprima e nel PDF. Cambiare filtro non degrada l'originale.
@@ -124,19 +129,17 @@ fun AppScreen() {
     }
 
     // --- Salvataggio: l'utente sceglie dove --------------------------------
-    val saveFile = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/pdf")
-    ) { uri ->
+    val saveFile = rememberLauncherForActivityResult(CreateDocumentWithMime()) { uri ->
         if (uri != null && rendered.any { it != null }) scope.launch {
             busy = true
             runCatching {
                 withContext(Dispatchers.IO) {
-                    ctx.contentResolver.openOutputStream(uri)!!.use {
-                        PdfPageComposer.writeTo(it, rendered, spec)
-                    }
+                    val result = DocumentExporter.export(rendered, spec, format, resolution)
+                    ctx.contentResolver.openOutputStream(uri)!!.use { it.write(result.bytes) }
+                    result
                 }
             }
-                .onSuccess { Toast.makeText(ctx, "PDF salvato", Toast.LENGTH_SHORT).show() }
+                .onSuccess { Toast.makeText(ctx, "Salvato — ${it.summary}", Toast.LENGTH_LONG).show() }
                 .onFailure { Toast.makeText(ctx, "Errore: ${it.message}", Toast.LENGTH_LONG).show() }
             busy = false
         }
@@ -158,11 +161,8 @@ fun AppScreen() {
         // l'effetto precedente quando la chiave cambia, quindi questa attesa si
         // comporta da debounce: il PDF si rigenera solo a digitazione ferma.
         delay(250)
-        preview = if (rendered.none { it != null }) null else withContext(Dispatchers.IO) {
-            runCatching {
-                val file = PdfPageComposer.writeToCache(ctx, rendered, spec)
-                InputLoader.load(ctx, Uri.fromFile(file))
-            }.getOrNull()
+        preview = withContext(Dispatchers.IO) {
+            runCatching { DocumentExporter.renderPreview(rendered, spec) }.getOrNull()
         }
     }
 
@@ -340,11 +340,31 @@ fun AppScreen() {
                 )
             }
 
+            // ---------- Formato di uscita ----------
+            Text("File di uscita", fontWeight = FontWeight.SemiBold)
+            ChoiceRow(
+                labels = OutputFormat.entries.map { it.label },
+                selected = OutputFormat.entries.indexOf(format),
+                onSelect = { format = OutputFormat.entries[it] }
+            )
+            Text(format.hint, style = MaterialTheme.typography.bodySmall)
+
+            // La risoluzione riguarda solo i formati immagine: il PDF incorpora
+            // i pixel originali e non ha una densità propria.
+            if (format.isRaster) {
+                ChoiceRow(
+                    labels = ExportResolution.entries.map { it.label },
+                    selected = ExportResolution.entries.indexOf(resolution),
+                    onSelect = { resolution = ExportResolution.entries[it] }
+                )
+                Text(resolution.hint, style = MaterialTheme.typography.bodySmall)
+            }
+
             Button(
-                onClick = { saveFile.launch(suggestedFileName(type)) },
+                onClick = { saveFile.launch(format.mimeType to suggestedFileName(type, format)) },
                 enabled = rendered.any { it != null } && !busy && !filtering,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Salva PDF") }
+            ) { Text("Salva ${format.label}") }
 
             if (busy || filtering) LinearProgressIndicator(Modifier.fillMaxWidth())
 
@@ -357,12 +377,28 @@ fun AppScreen() {
     }
 }
 
-private fun suggestedFileName(type: DocumentType): String {
+private fun suggestedFileName(type: DocumentType, format: OutputFormat): String {
     val slug = type.label.lowercase()
         .replace("'", "-")
         .replace(" ", "-")
         .replace(Regex("[^a-z0-9-]"), "")
-    return "$slug-A4.pdf"
+    return "$slug-A4.${format.extension}"
+}
+
+/**
+ * `CreateDocument` fissa il MIME type alla costruzione, mentre qui cambia con il
+ * formato scelto. Un contratto su misura evita di registrare quattro launcher
+ * o di ripiegare su un generico che confonde certi file manager.
+ */
+private class CreateDocumentWithMime : ActivityResultContract<Pair<String, String>, Uri?>() {
+    override fun createIntent(context: Context, input: Pair<String, String>): Intent =
+        Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(input.first)
+            .putExtra(Intent.EXTRA_TITLE, input.second)
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Uri? =
+        if (resultCode == Activity.RESULT_OK) intent?.data else null
 }
 
 /** Gruppo di scelte mutuamente esclusive, da due a quattro voci. */
