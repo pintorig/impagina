@@ -12,8 +12,17 @@ nessun permesso runtime richiesto.
 - Acquisizione da fotocamera con ritaglio automatico dei bordi (scanner ML Kit)
 - Import da galleria o file manager: JPEG, PNG, HEIC, PDF
 - Rotazione a 90° per raddrizzare uno scatto storto
+- Filtro di resa: colore, scala di grigi, alto contrasto
 - Anteprima fedele: mostra il PDF davvero generato, non una simulazione
 - Salvataggio dove vuoi tramite Storage Access Framework
+
+### Resa dell'immagine
+
+| Filtro | Cosa fa | Quando |
+|---|---|---|
+| Colore | nessuna alterazione | l'ente chiede la copia a colori |
+| Grigi | sola desaturazione | si vuole il bianco e nero senza toccare i toni |
+| Contrasto | auto-livelli sui grigi | resa da fotocopia, file più leggero |
 
 ### Documenti e layout
 
@@ -89,16 +98,18 @@ documento-a4/
         ├── AndroidManifest.xml
         ├── java/it/example/idcard2a4/
         │   ├── DocumentFormats.kt  formati, specifica e matematica dei layout
+        │   ├── ImageFilters.kt     curva tonale e applicazione dei filtri
         │   ├── InputLoader.kt      foto e PDF → bitmap
         │   ├── PdfPageComposer.kt  disegno della pagina A4
         │   └── MainActivity.kt     UI Compose, picker, scanner, salvataggio
         └── res/
 ```
 
-`DocumentFormats.kt` è **Kotlin puro**: niente `RectF`, niente `Context`. I
-rettangoli sono una `data class Box` scritta apposta. Sembra una scomodità, ma è
-ciò che permette di testare tutta la geometria su JVM in pochi millisecondi,
-senza emulatore né Robolectric:
+`DocumentFormats.kt` e l'oggetto `ToneMapping` sono **Kotlin puro**: niente
+`RectF`, niente `Bitmap`, niente `Context`. I rettangoli sono una `data class Box`
+scritta apposta, e la curva tonale lavora su un `IntArray` di 256 elementi.
+Sembra una scomodità, ma è ciò che permette di testare geometria e resa su JVM in
+pochi millisecondi, senza emulatore né Robolectric:
 
 ```bash
 ./gradlew test
@@ -120,6 +131,21 @@ un foglio grande come un manifesto.
 125 × 88 mm (ISO/IEC 7810). Stampato 1:1, il risultato è indistinguibile da una
 fotocopia, che è quello che gli uffici si aspettano.
 
+**Niente binarizzazione.** La scelta ovvia per un filtro bianco/nero sarebbe la
+soglia: ogni pixel diventa 0 o 255. Su un documento d'identità è una pessima
+idea — cancella la fotografia del volto, gli ologrammi e i microtesti di
+sicurezza, e il risultato *sembra* un documento alterato. Il filtro «Contrasto»
+fa invece un'equalizzazione dei livelli in scala di grigi: lo sfondo va a bianco
+pieno, il testo si scurisce, ma fra i due restano oltre cento livelli intermedi.
+
+**Il punto di bianco si aggancia al picco della carta, non a un percentile.**
+Su una scansione lo sfondo è un modo largo e basso dell'istogramma: prendere il
+90° percentile cade *dentro* quel modo e lascia la carta a un grigio chiaro.
+`paperWhitePoint()` individua il picco nella metà alta dell'istogramma e scende
+fino alla sua spalla, così l'intero sfondo si appiattisce a 255. È anche da qui
+che viene l'alleggerimento del file: uno sfondo uniforme si comprime molto
+meglio di uno screziato.
+
 **Quando si riduce, si riduce tutto.** Se il blocco non entra, scalano anche i
 vuoti tra le facciate, non solo le facciate. Scalare le sole immagini lasciando
 i margini fissi è l'errore classico: il blocco ridotto sborda comunque.
@@ -140,7 +166,7 @@ cache prima di essere aperto.
 - [x] Più tipi di documento con layout dedicati
 - [x] Test unitari sulla geometria
 - [x] Pulizia di `cacheDir` in `onDestroy()`
-- [ ] Filtro bianco/nero con curva di contrasto (file più leggeri, resa migliore in fotocopia)
+- [x] Filtro bianco/nero con curva di contrasto
 - [ ] Filigrana "copia conforme ad uso …", richiesta da molti enti
 - [ ] Ricompressione JPEG a qualità configurabile
 - [ ] Layout multipagina per documenti oltre quattro facciate

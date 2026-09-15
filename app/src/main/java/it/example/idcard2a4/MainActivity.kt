@@ -54,12 +54,19 @@ fun AppScreen() {
     val scope = rememberCoroutineScope()
 
     var spec by remember { mutableStateOf(LayoutSpec()) }
+    var filter by remember { mutableStateOf(ImageFilter.NONE) }
+
+    // `shots` resta la sorgente intatta; `rendered` è la versione filtrata che
+    // finisce nell'anteprima e nel PDF. Cambiare filtro non degrada l'originale.
     var shots by remember {
         mutableStateOf(List<Bitmap?>(DocumentType.CARTA_IDENTITA.slotLabels.size) { null })
     }
+    var rendered by remember { mutableStateOf<List<Bitmap?>>(emptyList()) }
+
     var preview by remember { mutableStateOf<Bitmap?>(null) }
     var layout by remember { mutableStateOf(PageLayouts.compute(LayoutSpec())) }
     var busy by remember { mutableStateOf(false) }
+    var filtering by remember { mutableStateOf(false) }
     var targetSlot by remember { mutableIntStateOf(0) }
 
     fun selectType(type: DocumentType) {
@@ -119,12 +126,12 @@ fun AppScreen() {
     val saveFile = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri ->
-        if (uri != null && shots.any { it != null }) scope.launch {
+        if (uri != null && rendered.any { it != null }) scope.launch {
             busy = true
             runCatching {
                 withContext(Dispatchers.IO) {
                     ctx.contentResolver.openOutputStream(uri)!!.use {
-                        PdfPageComposer.writeTo(it, shots, spec)
+                        PdfPageComposer.writeTo(it, rendered, spec)
                     }
                 }
             }
@@ -134,12 +141,21 @@ fun AppScreen() {
         }
     }
 
+    // --- Applicazione del filtro: pesante, fuori dal main thread ------------
+    LaunchedEffect(shots, filter) {
+        filtering = shots.any { it != null } && filter != ImageFilter.NONE
+        rendered = withContext(Dispatchers.IO) {
+            shots.map { src -> src?.let { ImageFilters.apply(it, filter) } }
+        }
+        filtering = false
+    }
+
     // --- Anteprima: genera il PDF vero e ne rasterizza la pagina ------------
-    LaunchedEffect(shots, spec) {
+    LaunchedEffect(rendered, spec) {
         layout = PageLayouts.compute(spec.copy(slotCount = shots.size))
-        preview = if (shots.none { it != null }) null else withContext(Dispatchers.IO) {
+        preview = if (rendered.none { it != null }) null else withContext(Dispatchers.IO) {
             runCatching {
-                val file = PdfPageComposer.writeToCache(ctx, shots, spec)
+                val file = PdfPageComposer.writeToCache(ctx, rendered, spec)
                 InputLoader.load(ctx, Uri.fromFile(file))
             }.getOrNull()
         }
@@ -180,7 +196,9 @@ fun AppScreen() {
                         val i = rowIndex * 2 + colIndex
                         SideCard(
                             label = label,
-                            bmp = shots.getOrNull(i),
+                            // la miniatura mostra il filtro, così l'effetto è
+                            // visibile subito senza scorrere fino all'anteprima
+                            bmp = rendered.getOrNull(i) ?: shots.getOrNull(i),
                             ratio = type.previewRatio,
                             modifier = Modifier.weight(1f),
                             onScan = { startScan(i) },
@@ -196,30 +214,33 @@ fun AppScreen() {
                 }
             }
 
+            // ---------- Resa ----------
+            Text("Resa", fontWeight = FontWeight.SemiBold)
+            ChoiceRow(
+                labels = ImageFilter.entries.map { it.label },
+                selected = ImageFilter.entries.indexOf(filter),
+                onSelect = { filter = ImageFilter.entries[it] }
+            )
+            Text(filter.hint, style = MaterialTheme.typography.bodySmall)
+
             // ---------- Layout di destinazione ----------
             Text("Layout del foglio", fontWeight = FontWeight.SemiBold)
 
-            TwoWayChoice(
-                left = Sizing.ACTUAL.label,
-                right = Sizing.FIT.label,
-                leftSelected = spec.sizing == Sizing.ACTUAL,
+            ChoiceRow(
+                labels = Sizing.entries.map { it.label },
+                selected = Sizing.entries.indexOf(spec.sizing),
                 enabled = type.physicalSize != null,
-                onLeft = { spec = spec.copy(sizing = Sizing.ACTUAL) },
-                onRight = { spec = spec.copy(sizing = Sizing.FIT) }
+                onSelect = { spec = spec.copy(sizing = Sizing.entries[it]) }
             )
-            TwoWayChoice(
-                left = Arrangement.STACKED.label,
-                right = Arrangement.SIDE_BY_SIDE.label,
-                leftSelected = spec.arrangement == Arrangement.STACKED,
-                onLeft = { spec = spec.copy(arrangement = Arrangement.STACKED) },
-                onRight = { spec = spec.copy(arrangement = Arrangement.SIDE_BY_SIDE) }
+            ChoiceRow(
+                labels = Arrangement.entries.map { it.label },
+                selected = Arrangement.entries.indexOf(spec.arrangement),
+                onSelect = { spec = spec.copy(arrangement = Arrangement.entries[it]) }
             )
-            TwoWayChoice(
-                left = PageOrientation.PORTRAIT.label,
-                right = PageOrientation.LANDSCAPE.label,
-                leftSelected = spec.orientation == PageOrientation.PORTRAIT,
-                onLeft = { spec = spec.copy(orientation = PageOrientation.PORTRAIT) },
-                onRight = { spec = spec.copy(orientation = PageOrientation.LANDSCAPE) }
+            ChoiceRow(
+                labels = PageOrientation.entries.map { it.label },
+                selected = PageOrientation.entries.indexOf(spec.orientation),
+                onSelect = { spec = spec.copy(orientation = PageOrientation.entries[it]) }
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -270,11 +291,11 @@ fun AppScreen() {
 
             Button(
                 onClick = { saveFile.launch(suggestedFileName(type)) },
-                enabled = shots.any { it != null } && !busy,
+                enabled = rendered.any { it != null } && !busy && !filtering,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Salva PDF") }
 
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (busy || filtering) LinearProgressIndicator(Modifier.fillMaxWidth())
 
             Text(
                 "Tutta l'elaborazione avviene sul dispositivo: nessuna immagine viene inviata in rete.",
@@ -293,29 +314,24 @@ private fun suggestedFileName(type: DocumentType): String {
     return "$slug-A4.pdf"
 }
 
+/** Gruppo di scelte mutuamente esclusive, da due a quattro voci. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TwoWayChoice(
-    left: String,
-    right: String,
-    leftSelected: Boolean,
-    onLeft: () -> Unit,
-    onRight: () -> Unit,
+private fun ChoiceRow(
+    labels: List<String>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
     enabled: Boolean = true
 ) {
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        SegmentedButton(
-            selected = leftSelected,
-            onClick = onLeft,
-            enabled = enabled,
-            shape = SegmentedButtonDefaults.itemShape(0, 2)
-        ) { Text(left) }
-        SegmentedButton(
-            selected = !leftSelected,
-            onClick = onRight,
-            enabled = enabled,
-            shape = SegmentedButtonDefaults.itemShape(1, 2)
-        ) { Text(right) }
+        labels.forEachIndexed { i, label ->
+            SegmentedButton(
+                selected = i == selected,
+                onClick = { onSelect(i) },
+                enabled = enabled,
+                shape = SegmentedButtonDefaults.itemShape(i, labels.size)
+            ) { Text(label) }
+        }
     }
 }
 
