@@ -20,7 +20,7 @@ nessun permesso runtime richiesto.
 - Da 1 a 12 facciate, impaginate su più fogli quando serve
 - Preset salvabili e ripristino automatico dell'ultima configurazione
 - Anteprima fedele: mostra il PDF davvero generato, non una simulazione
-- Salvataggio dove vuoi tramite Storage Access Framework
+- Salvataggio dove vuoi tramite Storage Access Framework, oppure condivisione diretta
 
 ### Resa dell'immagine
 
@@ -69,6 +69,26 @@ Niente trascinamento, ed è una scelta: le schede stanno dentro una colonna
 scorrevole, dove un drag dopo long-press litiga con lo scroll e produce codice
 fragile che non si riesce a testare. Le frecce fanno la stessa cosa, sono
 accessibili da lettore di schermo e la logica sottostante è verificabile.
+
+### Salvare e condividere
+
+**Salva** apre il selettore di sistema: scegli cartella e nome, il file viene
+scritto lì. È il motivo per cui l'app non chiede permessi — con
+`ACTION_CREATE_DOCUMENT` è il sistema a concedere l'accesso alla singola
+posizione scelta. A salvataggio fatto compare il riepilogo con formato, pagine,
+qualità e peso, e un'azione **Apri** per verificarlo senza cercarlo nel file
+manager.
+
+**Condividi** salta il passaggio dal disco e apre direttamente il foglio di
+condivisione, per allegare il documento a una mail o mandarlo in chat.
+
+Per condividere serve un `Uri` leggibile da altre app, quindi un `FileProvider`
+e un file vero su disco. Sono documenti d'identità, quindi quel file non resta in
+giro: vive in una sottocartella dedicata della cache, svuotata a ogni nuova
+condivisione e all'uscita dall'app. Il `FileProvider` espone **solo** quella
+sottocartella, non l'intera cache, così non può finire condiviso per sbaglio un
+PDF temporaneo di input. Nessun oggetto precompilato nell'intent di invio:
+suggerirebbe un testo che descrive un documento d'identità.
 
 ### Formati di uscita
 
@@ -216,6 +236,8 @@ documento-a4/
         │   ├── PresetStore.kt      persistenza su SharedPreferences
         │   ├── Reorder.kt          riordino delle facciate
         │   ├── DocumentExporter.kt PDF e rasterizzazione
+        │   ├── SharedFiles.kt      condivisione e apertura via FileProvider
+        │   ├── FileNames.kt        nomi file sicuri
         │   ├── OutputFormat.kt     formati, risoluzioni, conversione punti/pixel
         │   ├── Watermark.kt        modello della filigrana e gestione del testo
         │   └── MainActivity.kt     UI Compose, picker, scanner, salvataggio
@@ -310,6 +332,15 @@ cache prima di essere aperto.
 - [x] Layout multipagina oltre le quattro facciate
 - [x] Riordino delle facciate
 - [x] Preset personalizzati e ripristino dell'ultima configurazione
+
+## Nomi dei file
+
+`FileNames.sanitize()` riduce qualunque etichetta a uno slug ASCII: accenti
+ripiegati, separatori di percorso e caratteri riservati sostituiti, trattini mai
+doppi, lunghezza limitata, e un nome generico quando non resta niente di utile.
+Non è pignoleria: quel nome finisce in un file vero e viene passato a un
+`ContentProvider`, quindi `../../etc/passwd` deve diventare `etc-passwd`, non
+"di solito" ma sempre.
 
 ## Privacy
 

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!--
+      Solo la sottocartella di condivisione, non l'intera cache: il
+      FileProvider non deve poter esporre i PDF temporanei di input.
+    -->
+    <cache-path name="condivisi" path="shared/" />
+</paths>

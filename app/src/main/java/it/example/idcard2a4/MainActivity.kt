@@ -6,7 +6,6 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -45,8 +44,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        // I PDF di anteprima contengono documenti d'identità: non restano in cache.
+        // Anteprime e file condivisi contengono documenti d'identità:
+        // non restano in cache oltre la sessione.
         InputLoader.clearCache(this)
+        SharedFiles.clear(this)
         super.onDestroy()
     }
 }
@@ -69,6 +70,7 @@ fun AppScreen() {
     val store = remember(ctx) { PresetStore(ctx) }
     var presets by remember { mutableStateOf(emptyList<Preset>()) }
     var namingPreset by remember { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
     var presetName by remember { mutableStateOf("") }
     var exportResult by remember { mutableStateOf<ExportResult?>(null) }
     var weighing by remember { mutableStateOf(false) }
@@ -107,6 +109,25 @@ fun AppScreen() {
         shots = Reorder.move(shots, from, to)
     }
 
+    fun shareDocument() = scope.launch {
+        busy = true
+        val staged = withContext(Dispatchers.IO) {
+            runCatching {
+                // riusa i byte già calcolati per il peso, se ci sono
+                val result = exportResult
+                    ?: DocumentExporter.export(rendered, spec, format, resolution, quality)
+                val name = FileNames.forDocument(spec.documentType.label, result.format)
+                SharedFiles.stage(ctx, result.bytes, name) to result
+            }.getOrNull()
+        }
+        busy = false
+        if (staged == null) {
+            snackbar.showSnackbar("Non è stato possibile preparare il file")
+        } else if (!SharedFiles.share(ctx, staged.first, staged.second.format.mimeType)) {
+            snackbar.showSnackbar("Nessuna app disponibile per la condivisione")
+        }
+    }
+
     /** Applica una configurazione salvata senza toccare le facciate acquisite. */
     fun applyPreset(preset: Preset) {
         spec = preset.layout
@@ -120,9 +141,7 @@ fun AppScreen() {
         busy = true
         runCatching { withContext(Dispatchers.IO) { InputLoader.load(ctx, uri) } }
             .onSuccess { put(index, it) }
-            .onFailure {
-                Toast.makeText(ctx, "File non leggibile: ${it.message}", Toast.LENGTH_LONG).show()
-            }
+            .onFailure { snackbar.showSnackbar("File non leggibile: ${it.message}") }
         busy = false
     }
 
@@ -155,8 +174,8 @@ fun AppScreen() {
             .addOnSuccessListener { sender ->
                 scanLauncher.launch(IntentSenderRequest.Builder(sender).build())
             }
-            .addOnFailureListener {
-                Toast.makeText(ctx, "Scanner non disponibile: ${it.message}", Toast.LENGTH_LONG).show()
+            .addOnFailureListener { error ->
+                scope.launch { snackbar.showSnackbar("Scanner non disponibile: ${error.message}") }
             }
     }
 
@@ -174,8 +193,19 @@ fun AppScreen() {
                     result
                 }
             }
-                .onSuccess { Toast.makeText(ctx, "Salvato — ${it.summary}", Toast.LENGTH_LONG).show() }
-                .onFailure { Toast.makeText(ctx, "Errore: ${it.message}", Toast.LENGTH_LONG).show() }
+                .onSuccess { result ->
+                    val choice = snackbar.showSnackbar(
+                        message = "Salvato — ${result.summary}",
+                        actionLabel = "Apri",
+                        duration = SnackbarDuration.Long
+                    )
+                    if (choice == SnackbarResult.ActionPerformed &&
+                        !SharedFiles.open(ctx, uri, result.format.mimeType)
+                    ) {
+                        snackbar.showSnackbar("Nessuna app disponibile per aprire questo formato")
+                    }
+                }
+                .onFailure { snackbar.showSnackbar("Errore: ${it.message}") }
             busy = false
         }
     }
@@ -251,12 +281,10 @@ fun AppScreen() {
         if (fit != null) {
             export = export.copy(quality = fit.quality)
             if (!fit.withinTarget) {
-                Toast.makeText(
-                    ctx,
+                snackbar.showSnackbar(
                     "Nemmeno alla qualità minima si scende sotto ${Sizes.format(targetBytes)}: " +
-                        "prova ad abbassare la risoluzione.",
-                    Toast.LENGTH_LONG
-                ).show()
+                        "prova ad abbassare la risoluzione."
+                )
             }
         }
     }
@@ -275,7 +303,10 @@ fun AppScreen() {
 
     val type = spec.documentType
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Impagina") }) }) { padding ->
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("Impagina") }) },
+        snackbarHost = { SnackbarHost(snackbar) }
+    ) { padding ->
         Column(
             Modifier
                 .padding(padding)
@@ -586,11 +617,24 @@ fun AppScreen() {
                 fontWeight = FontWeight.SemiBold
             )
 
-            Button(
-                onClick = { saveFile.launch(format.mimeType to suggestedFileName(type, format)) },
-                enabled = rendered.any { it != null } && !busy && !filtering,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Salva ${format.label}") }
+            val ready = rendered.any { it != null } && !busy && !filtering
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = {
+                        saveFile.launch(
+                            format.mimeType to FileNames.forDocument(type.label, format)
+                        )
+                    },
+                    enabled = ready,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Salva ${format.label}") }
+
+                OutlinedButton(
+                    onClick = { shareDocument() },
+                    enabled = ready,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Condividi") }
+            }
 
             TextButton(
                 onClick = { presetName = ""; namingPreset = true },
@@ -647,14 +691,6 @@ fun AppScreen() {
             }
         )
     }
-}
-
-private fun suggestedFileName(type: DocumentType, format: OutputFormat): String {
-    val slug = type.label.lowercase()
-        .replace("'", "-")
-        .replace(" ", "-")
-        .replace(Regex("[^a-z0-9-]"), "")
-    return "$slug-A4.${format.extension}"
 }
 
 /**
