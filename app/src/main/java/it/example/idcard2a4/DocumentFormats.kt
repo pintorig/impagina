@@ -94,7 +94,8 @@ data class LayoutSpec(
     val arrangement: Arrangement = Arrangement.STACKED,
     val orientation: PageOrientation = PageOrientation.PORTRAIT,
     val slotCount: Int = 2,
-    val showLabels: Boolean = false
+    val showLabels: Boolean = false,
+    val watermark: Watermark = Watermark()
 )
 
 /* =========================================================================
@@ -116,6 +117,8 @@ data class PageLayout(
     val slots: List<Box>,
     val labels: List<String>,
     val labelHeightPt: Float,
+    /** Fascia in fondo sottratta all'area utile e riservata alla filigrana. */
+    val reservedBottomPt: Float,
     /** 1.0 = dimensione reale rispettata; < 1 = il blocco è stato ridotto per entrare. */
     val appliedScale: Float,
     /** Cosa è stato applicato davvero: può differire da quanto richiesto. */
@@ -142,6 +145,7 @@ object PageLayouts {
     const val MARGIN_PT = 36f          // 12,7 mm
     const val GAP_PT = 24f             // spazio tra le facciate
     const val LABEL_PT = 15f           // fascia per la didascalia sotto ogni slot
+    const val WATERMARK_BAND_PT = 34f  // fascia in fondo, riservata alla filigrana
 
     const val MAX_SLOTS = 4
 
@@ -152,7 +156,10 @@ object PageLayouts {
         val pageW = if (portrait) A4_SHORT_PT else A4_LONG_PT
         val pageH = if (portrait) A4_LONG_PT else A4_SHORT_PT
         val usableW = pageW - 2 * MARGIN_PT
-        val usableH = pageH - 2 * MARGIN_PT
+        // La filigrana in fondo non si sovrappone al documento: le si riserva
+        // una fascia, che in modalità adattata sottrae spazio alle facciate.
+        val reservedBottom = reservedBottomFor(spec.watermark)
+        val usableH = pageH - 2 * MARGIN_PT - reservedBottom
 
         val stacked = spec.arrangement == Arrangement.STACKED
         val cols = if (stacked) 1 else n
@@ -221,10 +228,15 @@ object PageLayouts {
             slots = slots,
             labels = labelsFor(spec.documentType, n),
             labelHeightPt = labelH,
+            reservedBottomPt = reservedBottom,
             appliedScale = scale,
             effectiveSizing = effectiveSizing
         )
     }
+
+    /** Spazio da sottrarre in fondo al foglio per la filigrana. */
+    fun reservedBottomFor(watermark: Watermark): Float =
+        if (watermark.isActive && watermark.style == WatermarkStyle.BELOW) WATERMARK_BAND_PT else 0f
 
     /** Etichette del tipo documento, completate se gli slot sono più del previsto. */
     fun labelsFor(type: DocumentType, count: Int): List<String> =

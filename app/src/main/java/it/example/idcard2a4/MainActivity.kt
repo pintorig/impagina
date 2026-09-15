@@ -30,6 +30,7 @@ import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -153,6 +154,10 @@ fun AppScreen() {
     // --- Anteprima: genera il PDF vero e ne rasterizza la pagina ------------
     LaunchedEffect(rendered, spec) {
         layout = PageLayouts.compute(spec.copy(slotCount = shots.size))
+        // Digitare la filigrana cambia `spec` a ogni tasto. LaunchedEffect annulla
+        // l'effetto precedente quando la chiave cambia, quindi questa attesa si
+        // comporta da debounce: il PDF si rigenera solo a digitazione ferma.
+        delay(250)
         preview = if (rendered.none { it != null }) null else withContext(Dispatchers.IO) {
             runCatching {
                 val file = PdfPageComposer.writeToCache(ctx, rendered, spec)
@@ -250,6 +255,52 @@ fun AppScreen() {
                 )
                 Spacer(Modifier.width(12.dp))
                 Text("Didascalie sotto ogni facciata")
+            }
+
+            // ---------- Filigrana ----------
+            Text("Filigrana", fontWeight = FontWeight.SemiBold)
+            ChoiceRow(
+                labels = WatermarkStyle.entries.map { it.label },
+                selected = WatermarkStyle.entries.indexOf(spec.watermark.style),
+                onSelect = {
+                    spec = spec.copy(
+                        watermark = spec.watermark.copy(style = WatermarkStyle.entries[it])
+                    )
+                }
+            )
+            Text(spec.watermark.style.hint, style = MaterialTheme.typography.bodySmall)
+
+            if (spec.watermark.style != WatermarkStyle.NONE) {
+                OutlinedTextField(
+                    value = spec.watermark.text,
+                    onValueChange = {
+                        spec = spec.copy(watermark = spec.watermark.copy(text = it))
+                    },
+                    label = { Text("Testo della filigrana") },
+                    supportingText = {
+                        Text("${WatermarkText.DATE_TOKEN} viene sostituito con la data di oggi.")
+                    },
+                    singleLine = false,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Watermark.PRESETS.forEach { preset ->
+                        AssistChip(
+                            onClick = {
+                                spec = spec.copy(watermark = spec.watermark.copy(text = preset))
+                            },
+                            label = { Text(preset) }
+                        )
+                    }
+                }
+                Text(
+                    "«Copia conforme all'originale» è un'autentica che solo un pubblico " +
+                        "ufficiale può rilasciare: una scritta apposta qui non la sostituisce.",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             // ---------- Avviso di riduzione, con la correzione proposta ----------

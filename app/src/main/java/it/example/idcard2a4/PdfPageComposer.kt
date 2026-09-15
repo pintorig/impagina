@@ -10,6 +10,11 @@ import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import java.io.File
 import java.io.OutputStream
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlin.math.atan2
+import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -24,10 +29,27 @@ import kotlin.math.roundToInt
  */
 object PdfPageComposer {
 
+    private val DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ITALY)
+
+    // --- filigrana in fondo ---
+    private const val BELOW_MAX_PT = 10f
+    private const val BELOW_MIN_PT = 6f
+    private const val BELOW_LINE_SPACING = 1.25f
+
+    // --- filigrana diagonale ---
+    private const val DIAGONAL_COVERAGE = 0.78f   // quota della diagonale occupata
+    private const val DIAGONAL_MIN_PT = 10f
+    private const val DIAGONAL_MAX_PT = 90f
+    private const val DIAGONAL_ALPHA = 56         // su 255: leggibile sotto, visibile sopra
+
     /** Scrive un PDF di una sola pagina. Le immagini `null` lasciano lo slot vuoto. */
-    fun writeTo(out: OutputStream, images: List<Bitmap?>, spec: LayoutSpec): PageLayout {
-        val filled = images.filterNotNull()
-        require(filled.isNotEmpty()) { "Serve almeno una facciata" }
+    fun writeTo(
+        out: OutputStream,
+        images: List<Bitmap?>,
+        spec: LayoutSpec,
+        today: String = LocalDate.now().format(DATE_FORMAT)
+    ): PageLayout {
+        require(images.any { it != null }) { "Serve almeno una facciata" }
 
         val layout = PageLayouts.compute(spec.copy(slotCount = images.size))
 
@@ -58,10 +80,14 @@ object PdfPageComposer {
                 if (bmp != null) drawFitted(canvas, bmp, slot, imagePaint)
                 if (layout.labelHeightPt > 0f) {
                     val text = layout.labels.getOrNull(i).orEmpty()
-                    // baseline poco sotto lo slot, dentro la fascia riservata
                     val baseline = slot.bottom + layout.labelHeightPt * 0.72f
                     canvas.drawText(text, slot.centerX, baseline, labelPaint)
                 }
+            }
+
+            // La filigrana va per ultima: deve stare sopra al documento, non sotto.
+            if (spec.watermark.isActive) {
+                drawWatermark(canvas, layout, spec.watermark, today)
             }
 
             doc.finishPage(page)
@@ -96,5 +122,92 @@ object PdfPageComposer {
         val left = slot.centerX - w / 2f
         val top = slot.centerY - h / 2f
         canvas.drawBitmap(bmp, null, RectF(left, top, left + w, top + h), paint)
+    }
+
+    private fun drawWatermark(
+        canvas: Canvas,
+        layout: PageLayout,
+        watermark: Watermark,
+        today: String
+    ) {
+        val text = WatermarkText.expand(watermark.text, today).trim()
+        if (text.isEmpty()) return
+
+        when (watermark.style) {
+            WatermarkStyle.BELOW -> drawBelow(canvas, layout, text)
+            WatermarkStyle.DIAGONAL -> drawDiagonal(canvas, layout, text)
+            WatermarkStyle.NONE -> Unit
+        }
+    }
+
+    /** Annotazione nella fascia riservata in fondo: non copre nulla. */
+    private fun drawBelow(canvas: Canvas, layout: PageLayout, text: String) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(0x44, 0x44, 0x44)
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+            textSize = BELOW_MAX_PT
+        }
+
+        val maxWidth = layout.pageWidthPt - 2 * PageLayouts.MARGIN_PT
+        val lines = WatermarkText.wrap(text, maxWidth, paint::measureText, maxLines = 2)
+        if (lines.isEmpty()) return
+
+        // Una parola singola lunghissima può eccedere comunque: si rimpicciolisce
+        // invece di troncare, perché è un'annotazione e perderne un pezzo
+        // ne cambierebbe il senso.
+        val widest = lines.maxOf { paint.measureText(it) }
+        if (widest > maxWidth) {
+            paint.textSize = WatermarkText.fittingTextSize(
+                targetWidth = maxWidth,
+                widthAtUnitSize = widest / paint.textSize,
+                min = BELOW_MIN_PT,
+                max = BELOW_MAX_PT
+            )
+        }
+
+        val lineHeight = paint.textSize * BELOW_LINE_SPACING
+        val blockBottom = layout.pageHeightPt - PageLayouts.MARGIN_PT
+        var baseline = blockBottom - (lines.size - 1) * lineHeight
+        lines.forEach {
+            canvas.drawText(it, layout.pageWidthPt / 2f, baseline, paint)
+            baseline += lineHeight
+        }
+    }
+
+    /**
+     * Scritta obliqua sopra il documento.
+     *
+     * L'angolo segue la diagonale del foglio, così la scritta è lunga quanto
+     * possibile e attraversa entrambe le facciate: una filigrana che copre solo
+     * metà pagina si ritaglia via in un secondo. L'alfa resta bassa perché il
+     * documento sotto deve restare leggibile — altrimenti la copia è inutile.
+     */
+    private fun drawDiagonal(canvas: Canvas, layout: PageLayout, text: String) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(DIAGONAL_ALPHA, 0x20, 0x20, 0x20)
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            textSize = 1f
+        }
+
+        val w = layout.pageWidthPt
+        val h = layout.pageHeightPt
+        val diagonal = hypot(w, h)
+
+        paint.textSize = WatermarkText.fittingTextSize(
+            targetWidth = diagonal * DIAGONAL_COVERAGE,
+            widthAtUnitSize = paint.measureText(text),
+            min = DIAGONAL_MIN_PT,
+            max = DIAGONAL_MAX_PT
+        )
+
+        val angle = -Math.toDegrees(atan2(h.toDouble(), w.toDouble())).toFloat()
+
+        canvas.save()
+        canvas.rotate(angle, w / 2f, h / 2f)
+        // baseline spostata di poco sotto il centro, per centrare otticamente
+        canvas.drawText(text, w / 2f, h / 2f + paint.textSize * 0.35f, paint)
+        canvas.restore()
     }
 }

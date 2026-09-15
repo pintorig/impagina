@@ -111,4 +111,40 @@ class PageLayoutsTest {
         assertEquals("Pagina dati", labels[0])
         assertEquals("Pagina 4", labels[3])
     }
+
+    @Test
+    fun `la filigrana in fondo lascia libera la fascia riservata`() {
+        val layout = PageLayouts.compute(
+            LayoutSpec(
+                documentType = DocumentType.CARTA_IDENTITA,
+                watermark = Watermark("USO INTERNO", WatermarkStyle.BELOW)
+            )
+        )
+        val limit = layout.pageHeightPt - PageLayouts.MARGIN_PT - PageLayouts.WATERMARK_BAND_PT
+        assertTrue(layout.slots.maxOf { it.bottom } <= limit + tol)
+        assertEquals(PageLayouts.WATERMARK_BAND_PT, layout.reservedBottomPt, tol)
+    }
+
+    @Test
+    fun `in modalita adattata la fascia riservata riduce le celle`() {
+        val plain = PageLayouts.compute(LayoutSpec(sizing = Sizing.FIT))
+        val banded = PageLayouts.compute(
+            LayoutSpec(sizing = Sizing.FIT, watermark = Watermark("X", WatermarkStyle.BELOW))
+        )
+        assertTrue(banded.slots.first().height < plain.slots.first().height)
+        assertEquals(
+            PageLayouts.WATERMARK_BAND_PT / 2f,
+            plain.slots.first().height - banded.slots.first().height,
+            tol
+        )
+    }
+
+    @Test
+    fun `la filigrana diagonale non sottrae spazio al documento`() {
+        val plain = PageLayouts.compute(LayoutSpec(sizing = Sizing.FIT))
+        val diagonal = PageLayouts.compute(
+            LayoutSpec(sizing = Sizing.FIT, watermark = Watermark("X", WatermarkStyle.DIAGONAL))
+        )
+        assertEquals(plain.slots.first().height, diagonal.slots.first().height, tol)
+    }
 }

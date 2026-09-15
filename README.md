@@ -13,6 +13,7 @@ nessun permesso runtime richiesto.
 - Import da galleria o file manager: JPEG, PNG, HEIC, PDF
 - Rotazione a 90° per raddrizzare uno scatto storto
 - Filtro di resa: colore, scala di grigi, alto contrasto
+- Filigrana a testo libero, in fondo al foglio o in diagonale
 - Anteprima fedele: mostra il PDF davvero generato, non una simulazione
 - Salvataggio dove vuoi tramite Storage Access Framework
 
@@ -23,6 +24,23 @@ nessun permesso runtime richiesto.
 | Colore | nessuna alterazione | l'ente chiede la copia a colori |
 | Grigi | sola desaturazione | si vuole il bianco e nero senza toccare i toni |
 | Contrasto | auto-livelli sui grigi | resa da fotocopia, file più leggero |
+
+### Filigrana
+
+Il testo è libero, con il segnaposto `{data}` sostituito alla generazione. Due
+collocazioni:
+
+- **Sotto** — riga in fondo al foglio, in una fascia riservata che sottrae spazio
+  al documento invece di sovrapporsi. Non copre nulla, ma si ritaglia via.
+- **Diagonale** — scritta obliqua lungo la diagonale del foglio, in grigio al 22%
+  di opacità. Attraversa entrambe le facciate: una filigrana che ne copre una
+  sola si elimina in un secondo.
+
+I preset proposti sono `USO INTERNO`, `COPIA NON AUTENTICATA` e `Ad uso {data}`.
+Nessuno dice «copia conforme all'originale», ed è deliberato: quella è
+un'autentica ex art. 18 DPR 445/2000 che solo un pubblico ufficiale può
+rilasciare, e offrirla come formula pronta indurrebbe l'utente in errore. Un test
+lo verifica, così la regola non si perde in un refactor.
 
 ### Documenti e layout
 
@@ -101,15 +119,18 @@ documento-a4/
         │   ├── ImageFilters.kt     curva tonale e applicazione dei filtri
         │   ├── InputLoader.kt      foto e PDF → bitmap
         │   ├── PdfPageComposer.kt  disegno della pagina A4
+        │   ├── Watermark.kt        modello della filigrana e gestione del testo
         │   └── MainActivity.kt     UI Compose, picker, scanner, salvataggio
         └── res/
 ```
 
-`DocumentFormats.kt` e l'oggetto `ToneMapping` sono **Kotlin puro**: niente
-`RectF`, niente `Bitmap`, niente `Context`. I rettangoli sono una `data class Box`
-scritta apposta, e la curva tonale lavora su un `IntArray` di 256 elementi.
-Sembra una scomodità, ma è ciò che permette di testare geometria e resa su JVM in
-pochi millisecondi, senza emulatore né Robolectric:
+`DocumentFormats.kt`, `Watermark.kt` e l'oggetto `ToneMapping` sono **Kotlin
+puro**: niente `RectF`, niente `Bitmap`, niente `Context`. I rettangoli sono una
+`data class Box` scritta apposta, la curva tonale lavora su un `IntArray` di 256
+elementi, e il calcolo del testo riceve la misurazione come funzione — nei test
+la si sostituisce con un misuratore finto. Sembra una scomodità, ma è ciò che
+permette di verificare geometria, resa e impaginazione del testo su JVM in pochi
+millisecondi, senza emulatore né Robolectric:
 
 ```bash
 ./gradlew test
@@ -146,6 +167,11 @@ fino alla sua spalla, così l'intero sfondo si appiattisce a 255. È anche da qu
 che viene l'alleggerimento del file: uno sfondo uniforme si comprime molto
 meglio di uno screziato.
 
+**Il testo della filigrana non si tronca mai.** Se eccede due righe, l'eccedenza
+confluisce nell'ultima e poi è il corpo a rimpicciolirsi fino a 6 pt. Tagliare
+una frase come «Copia ad uso iscrizione scolastica anno 2026/2027» a metà ne
+cambierebbe il senso giuridico, il che è peggio di una riga scritta in piccolo.
+
 **Quando si riduce, si riduce tutto.** Se il blocco non entra, scalano anche i
 vuoti tra le facciate, non solo le facciate. Scalare le sole immagini lasciando
 i margini fissi è l'errore classico: il blocco ridotto sborda comunque.
@@ -167,7 +193,7 @@ cache prima di essere aperto.
 - [x] Test unitari sulla geometria
 - [x] Pulizia di `cacheDir` in `onDestroy()`
 - [x] Filtro bianco/nero con curva di contrasto
-- [ ] Filigrana "copia conforme ad uso …", richiesta da molti enti
+- [x] Filigrana a testo configurabile
 - [ ] Ricompressione JPEG a qualità configurabile
 - [ ] Layout multipagina per documenti oltre quattro facciate
 - [ ] Preset personalizzati salvabili dall'utente
