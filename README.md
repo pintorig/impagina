@@ -1,8 +1,8 @@
 # Documento → A4
 
-App Android che prende fronte e retro di un documento in formato ID-1 — carta
-d'identità elettronica, patente, tessera sanitaria — da foto o da PDF, e produce
-**un unico PDF A4 a pagina singola**, pronto da stampare o allegare.
+App Android che scansiona le facciate di un documento — carta d'identità,
+patente, tessera sanitaria, passaporto — e le impagina su **un unico foglio A4**,
+pronto da stampare o allegare.
 
 Tutta l'elaborazione avviene sul dispositivo. Nessuna immagine lascia il telefono,
 nessun permesso runtime richiesto.
@@ -12,11 +12,31 @@ nessun permesso runtime richiesto.
 - Acquisizione da fotocamera con ritaglio automatico dei bordi (scanner ML Kit)
 - Import da galleria o file manager: JPEG, PNG, HEIC, PDF
 - Rotazione a 90° per raddrizzare uno scatto storto
-- Due modalità di impaginazione:
-  - **Reale 1:1** — 85,60 × 53,98 mm, identico a una fotocopia
-  - **Ingrandito** — mezza pagina per facciata, per la leggibilità su schermo
 - Anteprima fedele: mostra il PDF davvero generato, non una simulazione
 - Salvataggio dove vuoi tramite Storage Access Framework
+
+### Documenti e layout
+
+| Documento | Formato | Facciate |
+|---|---|---|
+| Carta d'identità | ID-1, 85,60 × 53,98 mm | Fronte, Retro |
+| Patente | ID-1 | Fronte, Retro |
+| Tessera sanitaria | ID-1 | Fronte (codice fiscale), Retro (TEAM) |
+| Passaporto | ID-3, 125 × 88 mm | Pagina dati, Pagina firma |
+| Altro documento | non nota | Fronte, Retro |
+
+Il layout di destinazione si compone di quattro scelte indipendenti:
+
+- **Dimensione** — reale 1:1 oppure adattata al foglio
+- **Disposizione** — in colonna o affiancate
+- **Orientamento** — foglio verticale od orizzontale
+- **Didascalie** — etichetta sotto ogni facciata, utile per il passaporto
+
+Non tutte le combinazioni entrano in A4 a dimensione reale. Due pagine di
+passaporto affiancate su foglio verticale occuperebbero 250 mm in larghezza
+contro i 185 disponibili: in quel caso l'app riduce l'intero blocco in modo
+uniforme al 71%, lo dichiara, e propone il passaggio al foglio orizzontale dove
+invece la stampa 1:1 è possibile. Mai un ritaglio, mai una deformazione.
 
 ## Requisiti
 
@@ -68,13 +88,21 @@ documento-a4/
     └── src/main/
         ├── AndroidManifest.xml
         ├── java/it/example/idcard2a4/
-        │   ├── DocumentToA4.kt     geometria, caricamento input, composizione PDF
+        │   ├── DocumentFormats.kt  formati, specifica e matematica dei layout
+        │   ├── InputLoader.kt      foto e PDF → bitmap
+        │   ├── PdfPageComposer.kt  disegno della pagina A4
         │   └── MainActivity.kt     UI Compose, picker, scanner, salvataggio
         └── res/
 ```
 
-Il codice sta in due file di proposito: `DocumentToA4.kt` non dipende da Compose
-né dall'Activity, quindi è testabile in isolamento e riutilizzabile altrove.
+`DocumentFormats.kt` è **Kotlin puro**: niente `RectF`, niente `Context`. I
+rettangoli sono una `data class Box` scritta apposta. Sembra una scomodità, ma è
+ciò che permette di testare tutta la geometria su JVM in pochi millisecondi,
+senza emulatore né Robolectric:
+
+```bash
+./gradlew test
+```
 
 ## Come funziona
 
@@ -88,9 +116,13 @@ immagine e gli applica solo una trasformazione: i pixel originali della foto
 arrivano intatti nel PDF. Una pagina "a 300 dpi" (2480 × 3508 punti) produrrebbe
 un foglio grande come un manifesto.
 
-**La dimensione reale è il default.** ID-1 è 85,60 × 53,98 mm (ISO/IEC 7810).
-Stampato 1:1, il risultato è indistinguibile da una fotocopia, che è quello che
-gli uffici si aspettano.
+**La dimensione reale è il default.** ID-1 è 85,60 × 53,98 mm, ID-3 è
+125 × 88 mm (ISO/IEC 7810). Stampato 1:1, il risultato è indistinguibile da una
+fotocopia, che è quello che gli uffici si aspettano.
+
+**Quando si riduce, si riduce tutto.** Se il blocco non entra, scalano anche i
+vuoti tra le facciate, non solo le facciate. Scalare le sole immagini lasciando
+i margini fissi è l'errore classico: il blocco ridotto sborda comunque.
 
 ## Due trappole che costano un pomeriggio
 
@@ -105,12 +137,14 @@ cache prima di essere aperto.
 
 ## Roadmap
 
-- [ ] A4 orizzontale per la patente cartacea a tre ante
+- [x] Più tipi di documento con layout dedicati
+- [x] Test unitari sulla geometria
+- [x] Pulizia di `cacheDir` in `onDestroy()`
 - [ ] Filtro bianco/nero con curva di contrasto (file più leggeri, resa migliore in fotocopia)
 - [ ] Filigrana "copia conforme ad uso …", richiesta da molti enti
 - [ ] Ricompressione JPEG a qualità configurabile
-- [ ] Test unitari su `A4Composer.slots()` e sulla geometria ID-1
-- [ ] Pulizia di `cacheDir` in `onDestroy()`
+- [ ] Layout multipagina per documenti oltre quattro facciate
+- [ ] Preset personalizzati salvabili dall'utente
 
 ## Privacy
 
