@@ -1,4 +1,4 @@
-# Documento → A4
+# Impagina
 
 App Android che scansiona le facciate di un documento — carta d'identità,
 patente, tessera sanitaria, passaporto — e le impagina su **un unico foglio A4**,
@@ -191,8 +191,8 @@ invece la stampa 1:1 è possibile. Mai un ritaglio, mai una deformazione.
 ## Avvio rapido
 
 ```bash
-git clone https://github.com/<utente>/documento-a4.git
-cd documento-a4
+git clone https://github.com/<utente>/impagina.git
+cd impagina
 ```
 
 Il repository non include `gradle/wrapper/gradle-wrapper.jar`, che è un binario.
@@ -332,6 +332,11 @@ cache prima di essere aperto.
 - [x] Layout multipagina oltre le quattro facciate
 - [x] Riordino delle facciate
 - [x] Preset personalizzati e ripristino dell'ultima configurazione
+- [x] Condivisione diretta e apertura del file salvato
+- [ ] Voce «Dimentica tutto» per cancellare preset e cache
+- [ ] Riordino per trascinamento, se l'interazione a frecce si rivela scomoda
+- [ ] Traduzione inglese delle stringhe
+- [ ] Test di strumentazione su `SharedFiles` e `DocumentExporter`
 
 ## Nomi dei file
 
@@ -356,6 +361,10 @@ Su disco finiscono **solo impostazioni, mai le immagini**. Il testo della
 filigrana però può contenere dati personali ("ad uso iscrizione di …"): vive
 nell'archivio privato dell'app, e `PresetStore.clear()` esiste per cancellarlo
 davvero.
+
+## Changelog
+
+Vedi [CHANGELOG.md](CHANGELOG.md).
 
 ## Licenza
 

@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Documento A4"
+rootProject.name = "Impagina"
 include(":app")
