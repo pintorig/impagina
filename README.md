@@ -426,7 +426,7 @@ Vedi [CHANGELOG.md](CHANGELOG.md).
 
 ## Autore
 
-Sviluppata da [pintorig](https://github.com/pintorig).
+Sviluppata da **Giuliano Pintori** — [pintorig](https://github.com/pintorig) su GitHub.
 
 Segnalazioni e proposte via [issue](https://github.com/pintorig/impagina/issues).
 

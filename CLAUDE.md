@@ -218,7 +218,7 @@ dopo una scelta ragionata.
 **Apache-2.0.** Ogni sorgente inizia con due righe:
 
 ```kotlin
-// Copyright 2026 pintorig
+// Copyright 2026 Giuliano Pintori
 // SPDX-License-Identifier: Apache-2.0
 ```
 

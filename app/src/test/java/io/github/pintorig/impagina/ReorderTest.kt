@@ -1,4 +1,4 @@
-// Copyright 2026 pintorig
+// Copyright 2026 Giuliano Pintori
 // SPDX-License-Identifier: Apache-2.0
 
 package io.github.pintorig.impagina
