@@ -1,3 +1,6 @@
+// Copyright 2026 pintorig
+// SPDX-License-Identifier: Apache-2.0
+
 package io.github.pintorig.impagina
 
 import android.graphics.Bitmap

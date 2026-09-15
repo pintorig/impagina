@@ -213,6 +213,22 @@ dopo una scelta ragionata.
 
 ---
 
+## Licenza e intestazioni
+
+**Apache-2.0.** Ogni sorgente inizia con due righe:
+
+```kotlin
+// Copyright 2026 pintorig
+// SPDX-License-Identifier: Apache-2.0
+```
+
+**I file nuovi devono averle.** Non c'è ancora un controllo automatico che lo
+verifichi: aggiungerne uno alla CI è un candidato ragionevole per la roadmap.
+
+Non esiste un file `NOTICE`, di proposito: senza attribuzioni di terzi da
+riportare, crearlo imporrebbe un obbligo a chi ridistribuisce senza dare niente
+in cambio.
+
 ## Decisioni ancora aperte
 
 **Il nome.** `strings.xml` dice *Impagina*, e la top bar lo legge da lì

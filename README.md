@@ -336,6 +336,7 @@ cache prima di essere aperto.
 - [ ] Voce «Dimentica tutto» per cancellare preset e cache
 - [ ] Riordino per trascinamento, se l'interazione a frecce si rivela scomoda
 - [ ] Traduzione inglese delle stringhe
+- [ ] Controllo in CI che ogni sorgente porti l'intestazione SPDX
 - [ ] Test di strumentazione su `SharedFiles` e `DocumentExporter`
 
 ## Nomi dei file
@@ -423,6 +424,27 @@ quello ufficiale.
 
 Vedi [CHANGELOG.md](CHANGELOG.md).
 
+## Autore
+
+Sviluppata da [pintorig](https://github.com/pintorig).
+
+Segnalazioni e proposte via [issue](https://github.com/pintorig/impagina/issues).
+
 ## Licenza
 
-MIT — vedi [LICENSE](LICENSE).
+**Apache License 2.0** — vedi [LICENSE](LICENSE).
+
+Permissiva: puoi usare, modificare e ridistribuire il codice, anche in prodotti
+commerciali, a patto di conservare avvisi di copyright e licenza e di segnalare
+le modifiche. Rispetto alla MIT aggiunge una concessione esplicita di brevetto,
+ed è la licenza di AOSP, quindi la scelta di default dell'ecosistema Android.
+
+I sorgenti portano un'intestazione SPDX di due righe invece del blocco
+tredici righe suggerito dall'appendice della licenza: è la forma compatta
+moderna, leggibile dagli strumenti di analisi automatica e molto meno invadente
+in cima a un file.
+
+Non c'è un file `NOTICE`. È facoltativo, e aggiungerne uno senza attribuzioni da
+riportare creerebbe un obbligo per chi ridistribuisce senza dare niente in
+cambio. Se un giorno il progetto incorporerà codice di terzi che richiede
+attribuzione, quello è il momento di crearlo.
