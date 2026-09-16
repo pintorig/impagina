@@ -210,8 +210,16 @@ class PageLayoutsTest {
         val plan = cards(6)
         val sizes = plan.pages.flatMap { page ->
             page.slots.map { it.width to it.height }
-        }.distinct()
-        assertEquals(1, sizes.size)
+        }
+        // Confronto a tolleranza, non per uguaglianza esatta: width e height sono
+        // derivati (right - left), e in Float `(t + slotH) - t` perde un ulp a
+        // seconda dell'offset dello slot. Lo scarto è ~3e-5 pt, cioè 1e-5 mm:
+        // qualunque differenza vera di cella resta ordini di grandezza sopra.
+        val (w0, h0) = sizes.first()
+        sizes.forEach { (w, h) ->
+            assertEquals(w0, w, 0.01f)
+            assertEquals(h0, h, 0.01f)
+        }
     }
 
     @Test
