@@ -75,7 +75,7 @@ object PageRenderer {
      * nessuna deformazione, nessun ritaglio. Se la foto ha proporzioni diverse
      * dal formato nominale, resta un margine invece di una carta stirata.
      */
-    private fun drawFitted(canvas: Canvas, bmp: Bitmap, slot: Box, paint: Paint) {
+    private fun drawFitted(canvas: Canvas, bmp: Bitmap, slot: LayoutBox, paint: Paint) {
         val s = min(slot.width / bmp.width, slot.height / bmp.height)
         val w = bmp.width * s
         val h = bmp.height * s
