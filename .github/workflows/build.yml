@@ -44,7 +44,7 @@ jobs:
       # always(): i report servono soprattutto quando qualcosa è fallito.
       - name: Report dei test
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: app/build/reports/tests/
@@ -52,14 +52,14 @@ jobs:
 
       - name: Report di Lint
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lint-results
           path: app/build/reports/lint-results-debug.html
           if-no-files-found: ignore
 
       - name: APK di debug
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: impagina-debug
           path: app/build/outputs/apk/debug/*.apk
