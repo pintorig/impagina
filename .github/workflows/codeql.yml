@@ -3,8 +3,11 @@ name: CodeQL
 on:
   push:
     branches: [main]
+  # Nessun filtro sul ramo di destinazione: una PR impilata su un'altra PR
+  # ha come base un ramo che non è main, e con il filtro non veniva
+  # analizzata affatto. È così che una regressione è arrivata in main senza
+  # che nulla la segnalasse.
   pull_request:
-    branches: [main]
   schedule:
     # Lunedì alle 6:00 UTC: intercetta le vulnerabilità note emerse dopo
     # l'ultimo commit, su un progetto che può restare fermo per mesi.
@@ -29,6 +32,10 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      # build-mode resta "manual": l'analisi vede il codice come lo vede il
+      # compilatore. Non si può usare "none", che estrae solo il Java e qui
+      # non troverebbe nulla da analizzare — il progetto è tutto Kotlin.
+      # Il vincolo si paga invece sulla versione di Kotlin: vedi CLAUDE.md.
       - name: Inizializza CodeQL
         uses: github/codeql-action/init@v4
         with:
