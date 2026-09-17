@@ -205,6 +205,25 @@ degli overload sceglieva il candidato applicabile. Ora si chiamano
 `GridArrangement` e `LayoutBox`. Prima di introdurre un tipo, controlla che il
 nome non esista in Compose.
 
+**CodeQL non analizza le PR impilate.** `codeql.yml` filtrava su
+`pull_request: branches: [main]`: una PR la cui base è un'altra PR non veniva
+analizzata affatto, e il buco si vede solo a merge avvenuto. Il filtro è stato
+tolto. Da ricordare perché l'unico check obbligatorio su `main` è «Test e
+analisi»: CodeQL può restare rosso senza che nulla si fermi.
+
+**L'estrattore Kotlin di CodeQL è indietro rispetto al compilatore, e detta la
+versione di Kotlin.** Con la 2.4.20 l'analisi muore con «Kotlin version 2.4.20 is
+too recent. CodeQL currently supports versions below 2.4.20». Non è un problema
+della action: `codeql-action@v4` dà lo stesso errore della v3. Per questo il
+catalogo resta a **2.4.0**, ed è la voce `kotlin` del catalogo a pilotare il
+compilatore anche sotto AGP 9, che pure porta Kotlin con sé: abbassarla fa
+comparire `kotlin-build-tools-impl-2.4.0.jar` al posto della 2.4.20.
+
+**`build-mode: none` non è una scorciatoia per aggirarlo.** Estrae solo il Java,
+e qui non c'è Java: l'analisi finisce con «CodeQL could not process any code
+written in Java/Kotlin», cioè verde in apparenza e vuota nei fatti. Provato,
+fallito, e il motivo sta in fondo al log, non nell'errore in cima.
+
 **AGP 9 porta Kotlin con sé.** Dalla 9.0 il plugin
 `org.jetbrains.kotlin.android` non va più applicato: se resta, il build muore con
 «Cannot add extension with name 'kotlin'» (con Kotlin 2.1) o con un messaggio
