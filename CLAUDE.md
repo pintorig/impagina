@@ -294,15 +294,15 @@ stati valutati anche *Bifronte*, *Ricomponi* e *Unifoglio*.
 pubblicare: dopo il primo upload sul Play Store è **definitivo**. Usa un
 reverse-domain che controlli davvero.
 
-**`gradle-wrapper.jar` è ora nel repository**, insieme a `gradlew` e
-`gradlew.bat`: è ciò che permette di compilare senza installare Gradle. Ora che
-c'è un binario committato, ha senso aggiungere `gradle/actions/wrapper-validation`
-alla CI.
+**`gradle-wrapper.jar` è nel repository**, insieme a `gradlew` e `gradlew.bat`,
+ed è il Gradle che usa anche la CI. Resta da aggiungere
+`gradle/actions/wrapper-validation`, che verifica che quel binario sia davvero
+quello ufficiale: ora che il jar è committato ed è nel percorso di build di
+tutti, è il candidato più sensato per il prossimo giro sulla pipeline.
 
-**`lint { abortOnError = true }`.** Se il primo run in CI fallisce sono in genere
-segnalazioni vere; per partire morbido si mette a `false` e si rialza dopo aver
-ripulito. Il report HTML viene pubblicato come artifact anche in caso di
-fallimento.
+**`lint { abortOnError = true }`** ha girato in CI ed è pulito, quindi la
+domanda se partire morbido non si pone più: resta a `true`. Il report HTML viene
+pubblicato come artifact anche in caso di fallimento.
 
 **Niente ktlint né detekt**, di proposito: una CI rossa al primo push è una CI
 che si impara a ignorare. Il modo corretto è aggiungerli in locale, generare una
@@ -312,11 +312,10 @@ baseline, sistemare e solo allora metterli in pipeline. `.editorconfig` c'è gi�
 
 ## Prossimi passi
 
-**Prima di tutto**: `./gradlew test` passa (120 verdi) e il wrapper è
-committato. Resta da verificare l'esito del workflow `Build` su GitHub Actions —
-la pipeline è l'unica parte del progetto mai confermata sul campo.
+La pipeline è confermata sul campo: `Build` e `CodeQL` sono verdi sullo stesso
+commit, 120 test, lint compreso. Non è più il primo punto da sbrigare.
 
-Poi, dalla roadmap del README, in ordine di utilità:
+Dalla roadmap del README, in ordine di utilità:
 
 1. **Voce «Dimentica tutto»** — `PresetStore.clear()` esiste già, manca solo
    esporla nella UI insieme a `SharedFiles.clear()`.

@@ -407,10 +407,10 @@ primo push è una CI che si impara a ignorare. Il modo corretto è aggiungerli i
 locale, generare una baseline, sistemare quello che emerge e solo allora
 metterli in pipeline. `.editorconfig` c'è già e definisce le convenzioni.
 
-Manca anche la validazione del wrapper Gradle
-(`gradle/actions/wrapper-validation`), che ha senso aggiungere una volta
-committato `gradle-wrapper.jar`: serve a verificare che quel binario sia davvero
-quello ufficiale.
+Manca la validazione del wrapper Gradle
+(`gradle/actions/wrapper-validation`): ora che `gradle-wrapper.jar` è committato
+ed è il Gradle con cui compilano tutti, CI inclusa, serve a verificare che quel
+binario sia davvero quello ufficiale.
 
 ## Changelog
 
