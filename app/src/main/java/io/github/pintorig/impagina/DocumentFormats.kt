@@ -84,7 +84,7 @@ enum class Sizing(val label: String) {
 }
 
 /** Quante colonne compone la griglia. */
-enum class Arrangement(val label: String, val columns: Int) {
+enum class GridArrangement(val label: String, val columns: Int) {
     STACKED("In colonna", 1),
     SIDE_BY_SIDE("Affiancate", 2)
 }
@@ -97,7 +97,7 @@ enum class PageOrientation(val label: String) {
 data class LayoutSpec(
     val documentType: DocumentType = DocumentType.CARTA_IDENTITA,
     val sizing: Sizing = Sizing.ACTUAL,
-    val arrangement: Arrangement = Arrangement.STACKED,
+    val arrangement: GridArrangement = GridArrangement.STACKED,
     val orientation: PageOrientation = PageOrientation.PORTRAIT,
     val slotCount: Int = 2,
     val showLabels: Boolean = false,
@@ -110,7 +110,7 @@ data class LayoutSpec(
 
 /** Rettangolo in punti PostScript. Volutamente non è `RectF`: così la
  *  matematica del layout resta Kotlin puro e testabile senza emulatore. */
-data class Box(val left: Float, val top: Float, val right: Float, val bottom: Float) {
+data class LayoutBox(val left: Float, val top: Float, val right: Float, val bottom: Float) {
     val width: Float get() = right - left
     val height: Float get() = bottom - top
     val centerX: Float get() = (left + right) / 2f
@@ -122,7 +122,7 @@ data class PageLayout(
     val pageCount: Int,
     val pageWidthPt: Float,
     val pageHeightPt: Float,
-    val slots: List<Box>,
+    val slots: List<LayoutBox>,
     /** Indice globale della facciata che occupa ogni slot di questa pagina. */
     val slotIndices: List<Int>,
     val labels: List<String>,
@@ -277,7 +277,7 @@ object PageLayouts {
                 val c = i % columns
                 val l = originX + c * (slotW + gap)
                 val t = originY + r * (slotH + labelH + gap)
-                Box(l, t, l + slotW, t + slotH)
+                LayoutBox(l, t, l + slotW, t + slotH)
             }
             val indices = (0 until countHere).map { firstSlot + it }
 

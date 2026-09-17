@@ -435,9 +435,9 @@ fun AppScreen() {
                 onSelect = { spec = spec.copy(sizing = Sizing.entries[it]) }
             )
             ChoiceRow(
-                labels = Arrangement.entries.map { it.label },
-                selected = Arrangement.entries.indexOf(spec.arrangement),
-                onSelect = { spec = spec.copy(arrangement = Arrangement.entries[it]) }
+                labels = GridArrangement.entries.map { it.label },
+                selected = GridArrangement.entries.indexOf(spec.arrangement),
+                onSelect = { spec = spec.copy(arrangement = GridArrangement.entries[it]) }
             )
             ChoiceRow(
                 labels = PageOrientation.entries.map { it.label },

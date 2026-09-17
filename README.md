@@ -184,8 +184,9 @@ invece la stampa 1:1 è possibile. Mai un ritaglio, mai una deformazione.
 |---|---|
 | Android minimo | 9.0 (API 28) |
 | JDK | 17 |
-| Gradle | 8.11.1 |
-| Android Gradle Plugin | 8.9.1 |
+| Gradle | 9.7.1 |
+| Android Gradle Plugin | 9.4.0 |
+| Kotlin | 2.4.20 |
 | Google Play Services | necessario per lo scanner da fotocamera |
 
 ## Avvio rapido
@@ -195,24 +196,15 @@ git clone https://github.com/pintorig/impagina.git
 cd impagina
 ```
 
-Il repository non include `gradle/wrapper/gradle-wrapper.jar`, che è un binario.
-Generalo una volta sola:
-
-```bash
-gradle wrapper --gradle-version 8.11.1
-```
-
-Oppure apri semplicemente la cartella in Android Studio: il wrapper viene creato
-al primo sync. Poi:
+Il wrapper è nel repository, quindi non serve avere Gradle installato:
 
 ```bash
 ./gradlew assembleDebug
 ./gradlew installDebug      # con un dispositivo collegato
 ```
 
-Una volta generato, **committa il wrapper** (`gradlew`, `gradlew.bat`,
-`gradle/wrapper/`): è la prassi consigliata, garantisce che tutti compilino con
-la stessa versione di Gradle.
+È la stessa versione che usa la pipeline, che ora invoca `./gradlew` invece di
+un Gradle installato a parte: quello che passa in locale passa anche in CI.
 
 ## Struttura
 
