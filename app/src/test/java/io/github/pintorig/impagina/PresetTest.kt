@@ -30,7 +30,7 @@ class PresetTest {
         layout = LayoutSpec(
             documentType = DocumentType.PASSAPORTO,
             sizing = Sizing.FIT,
-            arrangement = Arrangement.SIDE_BY_SIDE,
+            arrangement = GridArrangement.SIDE_BY_SIDE,
             orientation = PageOrientation.LANDSCAPE,
             slotCount = 4,
             showLabels = true,

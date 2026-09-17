@@ -25,23 +25,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Installa Gradle direttamente: così la pipeline funziona anche se
-      # gradle-wrapper.jar non è stato ancora committato.
+      # Nessun gradle-version: si usa il wrapper committato, così la CI
+      # verifica esattamente la versione di Gradle che usa chi clona.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.11.1'
 
       # I test girano per primi: se la geometria, la curva tonale o il codec
       # si rompono, un APK che compila non serve a niente.
       - name: Unit test
-        run: gradle test --stacktrace
+        run: ./gradlew test --stacktrace
 
       - name: Android Lint
-        run: gradle lintDebug --stacktrace
+        run: ./gradlew lintDebug --stacktrace
 
       - name: Assemble debug APK
-        run: gradle assembleDebug --stacktrace
+        run: ./gradlew assembleDebug --stacktrace
 
       # always(): i report servono soprattutto quando qualcosa è fallito.
       - name: Report dei test
