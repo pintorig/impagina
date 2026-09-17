@@ -14,7 +14,14 @@ A4, esportabili in PDF, JPEG, PNG o WebP.
 Tutto avviene sul dispositivo. **Nessun permesso dichiarato**, nessuna rete,
 nessuna dipendenza oltre Compose e lo scanner ML Kit.
 
-Stato: `v1.9.0` (`versionCode` 10), 12 commit, 13 sorgenti, **120 test** su JVM.
+Stato: `v1.9.0` (`versionCode` 10), 13 sorgenti, **120 test** su JVM.
+Repository: <https://github.com/pintorig/impagina> — Apache-2.0, © 2026 Giuliano
+Pintori.
+
+**Il codice è stato compilato per la prima volta solo di recente**, e quella
+prima compilazione ha fatto emergere una collisione di nomi con Compose (vedi
+«Trappole»). Non escludere che ne restino altre: se qualcosa non torna, il
+compilatore ha ragione lui.
 
 ---
 
@@ -27,8 +34,19 @@ Stato: `v1.9.0` (`versionCode` 10), 12 commit, 13 sorgenti, **120 test** su JVM.
 ./gradlew installDebug      # con un dispositivo collegato
 ```
 
-Se `./gradlew` non esiste, il wrapper non è ancora stato generato:
-`gradle wrapper --gradle-version 8.11.1`, poi committalo.
+**Serve l'Android SDK anche solo per i test unitari**, perché compilano contro
+`android.jar`. Se manca, `ANDROID_HOME` non è impostata o `local.properties` non
+esiste, ogni task fallisce con «SDK location not found». `local.properties`
+contiene un percorso valido solo su questa macchina e non va committato: il
+`.gitignore` lo esclude già.
+
+Il wrapper è nel repository: `./gradlew` funziona su un clone pulito, senza
+Gradle installato. È fissato alla versione 9.7.1, la stessa che invoca la CI.
+
+**In locale gira JDK 21, in CI JDK 17.** Il progetto produce comunque bytecode 17
+(`jvmTarget`), quindi di norma non cambia nulla. Ma se un test passa in locale e
+fallisce in pipeline, quello è il primo sospetto: si elimina aggiungendo
+`kotlin { jvmToolchain(17) }` a `app/build.gradle.kts`.
 
 ---
 
@@ -177,6 +195,23 @@ essere aperto.
 `path="."` esporrebbe anche i PDF temporanei di input, che sono anch'essi
 scansioni di documenti.
 
+**Non dare ai tipi di dominio nomi di API Compose comuni.** `Arrangement` e `Box`
+erano entrambi in collisione con `androidx.compose.foundation.layout`, importato
+con wildcard in `MainActivity`. Per i **qualificatori di tipo** Kotlin preferisce
+le dichiarazioni dello stesso package agli import con wildcard, quindi
+`Arrangement.spacedBy(...)` risolveva sul nostro enum e non compilava. `Box` non
+dava errore solo per fortuna: era una chiamata di funzione, dove la risoluzione
+degli overload sceglieva il candidato applicabile. Ora si chiamano
+`GridArrangement` e `LayoutBox`. Prima di introdurre un tipo, controlla che il
+nome non esista in Compose.
+
+**AGP 9 porta Kotlin con sé.** Dalla 9.0 il plugin
+`org.jetbrains.kotlin.android` non va più applicato: se resta, il build muore con
+«Cannot add extension with name 'kotlin'» (con Kotlin 2.1) o con un messaggio
+esplicito che chiede di rimuoverlo (con Kotlin 2.4). Il blocco
+`kotlin { compilerOptions { jvmTarget } }` dentro `android {}` continua a valere,
+ed è quello che tiene il bytecode a 17: verificato, `major 61`.
+
 **L'ordine fra `LaunchedEffect` è fragile.** La cache dei filtri è indicizzata su
 `(bitmap, filtro)` e potata per *insieme voluto*, proprio per non dipendere da
 quale effetto parte per primo. Non sostituirla con un `clear()` in un effetto
@@ -240,12 +275,15 @@ stati valutati anche *Bifronte*, *Ricomponi* e *Unifoglio*.
 pubblicare: dopo il primo upload sul Play Store è **definitivo**. Usa un
 reverse-domain che controlli davvero.
 
-**`gradle-wrapper.jar` non è nel repository** perché è un binario. Generalo e
-committalo; poi ha senso aggiungere `gradle/actions/wrapper-validation` alla CI.
+**`gradle-wrapper.jar` è ora nel repository**, insieme a `gradlew` e
+`gradlew.bat`: è ciò che permette di compilare senza installare Gradle. Ora che
+c'è un binario committato, ha senso aggiungere `gradle/actions/wrapper-validation`
+alla CI.
 
-**`lint { abortOnError = true }`** non è mai stato eseguito su questo codice. Se
-il primo run in CI fallisce sono in genere segnalazioni vere; se preferisci
-partire morbido, mettilo a `false` e rialzalo dopo.
+**`lint { abortOnError = true }`.** Se il primo run in CI fallisce sono in genere
+segnalazioni vere; per partire morbido si mette a `false` e si rialza dopo aver
+ripulito. Il report HTML viene pubblicato come artifact anche in caso di
+fallimento.
 
 **Niente ktlint né detekt**, di proposito: una CI rossa al primo push è una CI
 che si impara a ignorare. Il modo corretto è aggiungerli in locale, generare una
@@ -255,7 +293,11 @@ baseline, sistemare e solo allora metterli in pipeline. `.editorconfig` c'è gi�
 
 ## Prossimi passi
 
-Dalla roadmap del README, in ordine di utilità:
+**Prima di tutto**: `./gradlew test` passa (120 verdi) e il wrapper è
+committato. Resta da verificare l'esito del workflow `Build` su GitHub Actions —
+la pipeline è l'unica parte del progetto mai confermata sul campo.
+
+Poi, dalla roadmap del README, in ordine di utilità:
 
 1. **Voce «Dimentica tutto»** — `PresetStore.clear()` esiste già, manca solo
    esporla nella UI insieme a `SharedFiles.clear()`.

@@ -25,11 +25,9 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.11.1'
 
       - name: Unit test
-        run: gradle test --stacktrace
+        run: ./gradlew test --stacktrace
 
       # La firma è opzionale: senza i secret esce un APK non firmato, utile
       # comunque per provarlo via adb. Con i secret esce installabile.
@@ -40,14 +38,14 @@ jobs:
       - name: Build release
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            gradle assembleRelease --stacktrace \
+            ./gradlew assembleRelease --stacktrace \
               -PKEYSTORE_FILE="$RUNNER_TEMP/keystore.jks" \
               -PKEYSTORE_PASSWORD="${{ secrets.KEYSTORE_PASSWORD }}" \
               -PKEY_ALIAS="${{ secrets.KEY_ALIAS }}" \
               -PKEY_PASSWORD="${{ secrets.KEY_PASSWORD }}"
           else
             echo "::warning::Nessun keystore nei secret: l'APK non sarà firmato."
-            gradle assembleRelease --stacktrace
+            ./gradlew assembleRelease --stacktrace
           fi
 
       # Le note di rilascio si estraggono dal CHANGELOG invece di riscriverle:
