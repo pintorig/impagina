@@ -139,7 +139,7 @@ object PresetCodec {
         val layout = LayoutSpec(
             documentType = enumOrDefault(fields["t"], DocumentType.CARTA_IDENTITA),
             sizing = enumOrDefault(fields["z"], Sizing.ACTUAL),
-            arrangement = enumOrDefault(fields["a"], Arrangement.STACKED),
+            arrangement = enumOrDefault(fields["a"], GridArrangement.STACKED),
             orientation = enumOrDefault(fields["o"], PageOrientation.PORTRAIT),
             slotCount = (fields["c"]?.toIntOrNull() ?: 2).coerceIn(1, PageLayouts.MAX_SLOTS),
             showLabels = fields["l"].toBoolean(),
