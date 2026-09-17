@@ -28,7 +28,7 @@ jobs:
       # Nessun gradle-version: si usa il wrapper committato, così la CI
       # verifica esattamente la versione di Gradle che usa chi clona.
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       # I test girano per primi: se la geometria, la curva tonale o il codec
       # si rompono, un APK che compila non serve a niente.
