@@ -42,8 +42,14 @@ jobs:
           languages: java-kotlin
           build-mode: manual
 
+      # --no-build-cache --rerun-tasks: l'estrattore di CodeQL intercetta il
+      # compilatore, quindi se la build viene servita dalla cache non compila
+      # niente e l'analisi finisce con «could not process any code written in
+      # Java/Kotlin» — un verde vuoto. Succede su ogni PR che non tocca i
+      # sorgenti Kotlin, documentazione compresa. Costa qualche minuto, ed e'
+      # il prezzo per analizzare davvero il codice.
       - name: Build
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug --no-build-cache --rerun-tasks --stacktrace
 
       - name: Analisi
         uses: github/codeql-action/analyze@v4

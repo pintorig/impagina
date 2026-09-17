@@ -219,6 +219,13 @@ catalogo resta a **2.4.0**, ed è la voce `kotlin` del catalogo a pilotare il
 compilatore anche sotto AGP 9, che pure porta Kotlin con sé: abbassarla fa
 comparire `kotlin-build-tools-impl-2.4.0.jar` al posto della 2.4.20.
 
+**Una build servita dalla cache non dà niente da analizzare a CodeQL.**
+L'estrattore intercetta il compilatore: se Gradle riusa la cache, l'analisi
+fallisce con «could not process any code written in Java/Kotlin». Si manifesta
+sulle PR che non toccano i sorgenti Kotlin — una modifica alla sola
+documentazione basta. Da qui `--no-build-cache --rerun-tasks` nello step di
+build di `codeql.yml`.
+
 **`build-mode: none` non è una scorciatoia per aggirarlo.** Estrae solo il Java,
 e qui non c'è Java: l'analisi finisce con «CodeQL could not process any code
 written in Java/Kotlin», cioè verde in apparenza e vuota nei fatti. Provato,
