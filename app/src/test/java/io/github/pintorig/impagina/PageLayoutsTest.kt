@@ -52,7 +52,7 @@ class PageLayoutsTest {
         val layout = PageLayouts.compute(
             LayoutSpec(
                 documentType = DocumentType.PASSAPORTO,
-                arrangement = Arrangement.SIDE_BY_SIDE,
+                arrangement = GridArrangement.SIDE_BY_SIDE,
                 orientation = PageOrientation.PORTRAIT
             )
         )
@@ -64,7 +64,7 @@ class PageLayoutsTest {
     fun `ruotando il foglio le stesse pagine entrano a dimensione reale`() {
         val spec = LayoutSpec(
             documentType = DocumentType.PASSAPORTO,
-            arrangement = Arrangement.SIDE_BY_SIDE,
+            arrangement = GridArrangement.SIDE_BY_SIDE,
             orientation = PageOrientation.PORTRAIT
         )
         val fix = PageLayouts.orientationThatFits(spec)
@@ -79,7 +79,7 @@ class PageLayoutsTest {
         val layout = PageLayouts.compute(
             LayoutSpec(
                 documentType = DocumentType.PASSAPORTO,
-                arrangement = Arrangement.SIDE_BY_SIDE,
+                arrangement = GridArrangement.SIDE_BY_SIDE,
                 orientation = PageOrientation.PORTRAIT
             )
         )
@@ -153,7 +153,7 @@ class PageLayoutsTest {
 
     /* --- Multipagina ---------------------------------------------------- */
 
-    private fun cards(n: Int, arrangement: Arrangement = Arrangement.STACKED) =
+    private fun cards(n: Int, arrangement: GridArrangement = GridArrangement.STACKED) =
         PageLayouts.computePlan(
             LayoutSpec(
                 documentType = DocumentType.CARTA_IDENTITA,
@@ -186,7 +186,7 @@ class PageLayoutsTest {
 
     @Test
     fun `sei tessere su due colonne stanno in un foglio solo`() {
-        val plan = cards(6, Arrangement.SIDE_BY_SIDE)
+        val plan = cards(6, GridArrangement.SIDE_BY_SIDE)
         assertEquals(1, plan.pageCount)
         assertEquals(2, plan.columns)
         assertEquals(3, plan.rowsPerPage)
@@ -194,7 +194,7 @@ class PageLayoutsTest {
 
     @Test
     fun `dodici tessere su due colonne danno due fogli da otto e quattro`() {
-        val plan = cards(12, Arrangement.SIDE_BY_SIDE)
+        val plan = cards(12, GridArrangement.SIDE_BY_SIDE)
         assertEquals(listOf(8, 4), plan.pages.map { it.slots.size })
     }
 
@@ -210,8 +210,16 @@ class PageLayoutsTest {
         val plan = cards(6)
         val sizes = plan.pages.flatMap { page ->
             page.slots.map { it.width to it.height }
-        }.distinct()
-        assertEquals(1, sizes.size)
+        }
+        // Confronto a tolleranza, non per uguaglianza esatta: width e height sono
+        // derivati (right - left), e in Float `(t + slotH) - t` perde un ulp a
+        // seconda dell'offset dello slot. Lo scarto è ~3e-5 pt, cioè 1e-5 mm:
+        // qualunque differenza vera di cella resta ordini di grandezza sopra.
+        val (w0, h0) = sizes.first()
+        sizes.forEach { (w, h) ->
+            assertEquals(w0, w, 0.01f)
+            assertEquals(h0, h, 0.01f)
+        }
     }
 
     @Test
@@ -229,7 +237,7 @@ class PageLayoutsTest {
             LayoutSpec(
                 documentType = DocumentType.CARTA_IDENTITA,
                 slotCount = 12,
-                arrangement = Arrangement.SIDE_BY_SIDE,
+                arrangement = GridArrangement.SIDE_BY_SIDE,
                 showLabels = true,
                 watermark = Watermark("USO INTERNO", WatermarkStyle.BELOW)
             )
@@ -248,7 +256,7 @@ class PageLayoutsTest {
 
     @Test
     fun `gli slot di una pagina non si sovrappongono mai`() {
-        val plan = cards(8, Arrangement.SIDE_BY_SIDE)
+        val plan = cards(8, GridArrangement.SIDE_BY_SIDE)
         plan.pages.forEach { page ->
             page.slots.forEachIndexed { i, a ->
                 page.slots.drop(i + 1).forEach { b ->
