@@ -41,7 +41,7 @@ contiene un percorso valido solo su questa macchina e non va committato: il
 `.gitignore` lo esclude già.
 
 Il wrapper è nel repository: `./gradlew` funziona su un clone pulito, senza
-Gradle installato. È fissato alla versione 8.11.1.
+Gradle installato. È fissato alla versione 9.7.1, la stessa che invoca la CI.
 
 **In locale gira JDK 21, in CI JDK 17.** Il progetto produce comunque bytecode 17
 (`jvmTarget`), quindi di norma non cambia nulla. Ma se un test passa in locale e
@@ -204,6 +204,13 @@ dava errore solo per fortuna: era una chiamata di funzione, dove la risoluzione
 degli overload sceglieva il candidato applicabile. Ora si chiamano
 `GridArrangement` e `LayoutBox`. Prima di introdurre un tipo, controlla che il
 nome non esista in Compose.
+
+**AGP 9 porta Kotlin con sé.** Dalla 9.0 il plugin
+`org.jetbrains.kotlin.android` non va più applicato: se resta, il build muore con
+«Cannot add extension with name 'kotlin'» (con Kotlin 2.1) o con un messaggio
+esplicito che chiede di rimuoverlo (con Kotlin 2.4). Il blocco
+`kotlin { compilerOptions { jvmTarget } }` dentro `android {}` continua a valere,
+ed è quello che tiene il bytecode a 17: verificato, `major 61`.
 
 **L'ordine fra `LaunchedEffect` è fragile.** La cache dei filtri è indicizzata su
 `(bitmap, filtro)` e potata per *insieme voluto*, proprio per non dipendere da
