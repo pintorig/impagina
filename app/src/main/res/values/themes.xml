@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-      Tema di piattaforma minimale: l'aspetto reale lo definisce MaterialTheme
+      Tema di piattaforma minimale: l'aspetto reale lo definisce ImpaginaTheme
       in Compose. Così evitiamo la dipendenza da com.google.android.material.
+
+      Nessun colore fisso per le barre di sistema: l'activity chiama
+      enableEdgeToEdge(), che le rende trasparenti e ne adatta le icone al
+      tema. Prima erano inchiodate a bianco, e in modalità scura era sbagliato.
+
+      windowBackground serve solo al lampo fra l'apertura e la prima
+      composizione: è il colore della scrivania, così non si vede un bianco.
     -->
-    <style name="Theme.DocumentoA4" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">@android:color/white</item>
-        <item name="android:windowLightStatusBar">true</item>
+    <style name="Theme.Impagina" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/scrivania</item>
     </style>
 </resources>
