@@ -51,76 +51,66 @@ object AppIcons {
     ) = path(fill = SolidColor(Color.Black), pathFillType = riempimento, pathBuilder = blocco)
 
     val Piu: ImageVector = icona("Piu") {
-        pieno {
-            moveTo(11f, 5f); lineTo(13f, 5f); lineTo(13f, 11f); lineTo(19f, 11f)
-            lineTo(19f, 13f); lineTo(13f, 13f); lineTo(13f, 19f); lineTo(11f, 19f)
-            lineTo(11f, 13f); lineTo(5f, 13f); lineTo(5f, 11f); lineTo(11f, 11f); close()
-        }
+        tratto { moveTo(12f, 5f); lineTo(12f, 19f); moveTo(5f, 12f); lineTo(19f, 12f) }
     }
 
     val Meno: ImageVector = icona("Meno") {
-        pieno {
-            moveTo(5f, 11f); lineTo(19f, 11f); lineTo(19f, 13f); lineTo(5f, 13f); close()
-        }
+        tratto { moveTo(5f, 12f); lineTo(19f, 12f) }
     }
 
-    /** Fotocamera: corpo con il gradino del mirino, obiettivo come foro. */
+    /** Fotocamera: corpo con il gradino del mirino e l'obiettivo. */
     val Fotocamera: ImageVector = icona("Fotocamera") {
-        pieno(PathFillType.EvenOdd) {
-            moveTo(9f, 3f); lineTo(15f, 3f); lineTo(16.8f, 5f); lineTo(20f, 5f)
-            lineTo(22f, 7f); lineTo(22f, 19f); lineTo(20f, 21f); lineTo(4f, 21f)
-            lineTo(2f, 19f); lineTo(2f, 7f); lineTo(4f, 5f); lineTo(7.2f, 5f); close()
-            moveTo(15.5f, 13f)
-            arcTo(3.5f, 3.5f, 0f, true, true, 8.5f, 13f)
-            arcTo(3.5f, 3.5f, 0f, true, true, 15.5f, 13f)
+        tratto {
+            moveTo(2.9f, 7.4f); lineTo(7.3f, 7.4f); lineTo(8.9f, 5.1f); lineTo(15.1f, 5.1f)
+            lineTo(16.7f, 7.4f); lineTo(21.1f, 7.4f); lineTo(21.1f, 20.1f)
+            lineTo(2.9f, 20.1f); close()
+            moveTo(15.4f, 13.8f)
+            arcTo(3.4f, 3.4f, 0f, true, true, 8.6f, 13.8f)
+            arcTo(3.4f, 3.4f, 0f, true, true, 15.4f, 13.8f)
             close()
         }
     }
 
-    /** Documento con l'angolo ripiegato, anch'esso ottenuto come foro. */
+    /** Documento con l'angolo ripiegato. */
     val Documento: ImageVector = icona("Documento") {
-        pieno(PathFillType.EvenOdd) {
-            moveTo(5f, 2f); lineTo(14f, 2f); lineTo(19f, 7f); lineTo(19f, 22f)
-            lineTo(5f, 22f); close()
-            moveTo(14f, 3.6f); lineTo(14f, 7f); lineTo(17.4f, 7f); close()
+        tratto {
+            moveTo(6f, 2.9f); lineTo(13.8f, 2.9f); lineTo(18f, 7.1f); lineTo(18f, 21.1f)
+            lineTo(6f, 21.1f); close()
+            moveTo(13.8f, 2.9f); lineTo(13.8f, 7.1f); lineTo(18f, 7.1f)
         }
     }
 
-    /** Ruota: tre quarti di giro e la punta che indica il verso, orario. */
+    /** Ruota: tre quarti di giro, con la punta che indica il verso orario. */
     val Ruota: ImageVector = icona("Ruota") {
         tratto {
             moveTo(19f, 12f)
             arcTo(7f, 7f, 0f, true, false, 12f, 5f)
         }
-        pieno {
-            moveTo(12f, 2.6f); lineTo(12f, 7.4f); lineTo(15.6f, 5f); close()
-        }
+        pieno { moveTo(12f, 2.9f); lineTo(12f, 7.1f); lineTo(15.2f, 5f); close() }
     }
 
     val Cestino: ImageVector = icona("Cestino") {
-        pieno {
-            moveTo(9f, 2f); lineTo(15f, 2f); lineTo(16f, 4f); lineTo(20f, 4f)
-            lineTo(20f, 6f); lineTo(4f, 6f); lineTo(4f, 4f); lineTo(8f, 4f); close()
-            moveTo(6f, 8f); lineTo(18f, 8f); lineTo(16.8f, 22f); lineTo(7.2f, 22f); close()
+        tratto {
+            moveTo(5.2f, 6.6f); lineTo(18.8f, 6.6f)
+            moveTo(9.6f, 6.6f); lineTo(9.6f, 4.3f); lineTo(14.4f, 4.3f); lineTo(14.4f, 6.6f)
+            moveTo(7.1f, 6.6f); lineTo(8f, 20.9f); lineTo(16f, 20.9f); lineTo(16.9f, 6.6f)
         }
     }
 
     /** Condividi: i tre nodi dell'icona di sistema Android. */
     val Condividi: ImageVector = icona("Condividi") {
         tratto {
-            moveTo(8.2f, 10.8f); lineTo(15.8f, 6.6f)
-            moveTo(8.2f, 13.2f); lineTo(15.8f, 17.4f)
-        }
-        pieno {
+            moveTo(8.3f, 10.9f); lineTo(15.7f, 6.7f)
+            moveTo(8.3f, 13.1f); lineTo(15.7f, 17.3f)
             moveTo(20.2f, 5.4f)
             arcTo(2.4f, 2.4f, 0f, true, true, 15.4f, 5.4f)
-            arcTo(2.4f, 2.4f, 0f, true, true, 20.2f, 5.4f); close()
+            arcTo(2.4f, 2.4f, 0f, true, true, 20.2f, 5.4f)
             moveTo(8.4f, 12f)
             arcTo(2.4f, 2.4f, 0f, true, true, 3.6f, 12f)
-            arcTo(2.4f, 2.4f, 0f, true, true, 8.4f, 12f); close()
+            arcTo(2.4f, 2.4f, 0f, true, true, 8.4f, 12f)
             moveTo(20.2f, 18.6f)
             arcTo(2.4f, 2.4f, 0f, true, true, 15.4f, 18.6f)
-            arcTo(2.4f, 2.4f, 0f, true, true, 20.2f, 18.6f); close()
+            arcTo(2.4f, 2.4f, 0f, true, true, 20.2f, 18.6f)
         }
     }
 
