@@ -232,6 +232,13 @@ degli overload sceglieva il candidato applicabile. Ora si chiamano
 `GridArrangement` e `LayoutBox`. Prima di introdurre un tipo, controlla che il
 nome non esista in Compose.
 
+**I permessi possono entrare dalle dipendenze.** Il manifest non ne dichiarava
+nessuno, eppure l'APK esponeva `INTERNET` e `ACCESS_NETWORK_STATE`: li portava
+`com.google.android.datatransport`, la telemetria che viaggia con lo scanner ML
+Kit. Il claim di privacy del README era falso a insaputa di tutti, e si vede solo
+ispezionando l'APK — `aapt2 dump badging`, non il sorgente. Ora sono rimossi con
+`tools:node="remove"`. Prima di fidarsi di quel claim, guarda l'APK.
+
 **CodeQL non analizza le PR impilate.** `codeql.yml` filtrava su
 `pull_request: branches: [main]`: una PR la cui base è un'altra PR non veniva
 analizzata affatto, e il buco si vede solo a merge avvenuto. Il filtro è stato

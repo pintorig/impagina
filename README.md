@@ -344,7 +344,16 @@ Non è pignoleria: quel nome finisce in un file vero e viene passato a un
 
 L'app tratta documenti di identità, che sotto GDPR sono dati personali trattati in
 un contesto delicato. Il codice attuale non fa uscire nulla dal dispositivo e non
-dichiara permessi. Se in futuro aggiungi backup automatico, analytics o crash
+dichiara permessi.
+
+Dichiararne zero nel nostro manifest non bastava: lo scanner ML Kit si porta
+dietro `com.google.android.datatransport`, il trasporto con cui le librerie
+Google caricano telemetria, e quello dichiarava `INTERNET` e
+`ACCESS_NETWORK_STATE`. Finivano nell'APK, e chi apriva i permessi nelle
+impostazioni vedeva «Internet» a dispetto di quanto promesso qui. Ora vengono
+rimossi in fase di merge del manifest con `tools:node="remove"`, ed è verificato
+sull'APK prodotto. Condividere non ne ha bisogno: `ACTION_SEND` consegna il file
+a un'altra app, ed è quella a mandarlo in rete con i propri permessi. Se in futuro aggiungi backup automatico, analytics o crash
 reporting con screenshot, quelle immagini finiscono fuori dal telefono e ti porti
 dietro obblighi seri: valutalo prima di introdurre la dipendenza, non dopo.
 
