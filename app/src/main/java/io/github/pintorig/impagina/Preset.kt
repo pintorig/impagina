@@ -97,6 +97,9 @@ object PresetCodec {
         val fields = linkedMapOf(
             "n" to preset.name,
             "t" to preset.layout.documentType.name,
+            // vuoto quando non c'è un template misto: un preset salvato prima
+            // che i template esistessero non ha questo campo e deve leggersi
+            "tm" to (preset.layout.combinazione?.name ?: ""),
             "z" to preset.layout.sizing.name,
             "a" to preset.layout.arrangement.name,
             "o" to preset.layout.orientation.name,
@@ -139,6 +142,9 @@ object PresetCodec {
         val layout = LayoutSpec(
             documentType = enumOrDefault(fields["t"], DocumentType.CARTA_IDENTITA),
             sizing = enumOrDefault(fields["z"], Sizing.ACTUAL),
+            combinazione = fields["tm"]
+                ?.takeIf { it.isNotBlank() }
+                ?.let { nome -> Combinazione.entries.firstOrNull { it.name == nome } },
             arrangement = enumOrDefault(fields["a"], GridArrangement.STACKED),
             orientation = enumOrDefault(fields["o"], PageOrientation.PORTRAIT),
             slotCount = (fields["c"]?.toIntOrNull() ?: 2).coerceIn(1, PageLayouts.MAX_SLOTS),

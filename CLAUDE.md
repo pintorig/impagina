@@ -87,6 +87,33 @@ funzione che prende un `Context`, fermati e chiediti cosa può uscirne.
 
 ---
 
+## Come si guarda la UI
+
+**Le anteprime stanno in `app/src/debug/.../Anteprime.kt`** e si aprono nel
+pannello Preview di Android Studio: schermata all'avvio in chiaro e in scuro,
+sezioni chiuse, filigrana aperta. Nessuna dipendenza in più, e non entrano nel
+build di release perché `ui-tooling` è una `debugImplementation`.
+
+Funzionano perché i composable delle sezioni sono puri: ricevono valori e
+callback, non un `Context`. Se una sezione smette di comparire lì, si è portata
+dentro una dipendenza da Android che poteva restare fuori.
+
+**Due strade già provate e fallite**, per non ricascarci:
+
+*L'emulatore va in segmentation fault su questa macchina.* Crolla prima di
+avviare il guest, sempre nello stesso punto. Fedora 44 con kernel 7.1 e glibc
+2.43 è più recente delle librerie che l'emulatore si porta dietro;
+`ANDROID_EMULATOR_USE_SYSTEM_LIBS=1`, che è il workaround documentato, non
+cambia nulla. KVM e memoria non c'entrano.
+
+*Il plugin `com.android.compose.screenshot` non vede le anteprime.* Si applica,
+crea il source set, compila le classi — e poi non ne scopre nessuna, senza
+emettere un errore. È fermo alla `0.0.1-alpha16` e non digerisce AGP 9.4 con
+Compose 1.12. Per renderizzare gli screenshot su JVM resterebbero Roborazzi o
+Paparazzi, ma il primo porta Robolectric: vedi più sotto.
+
+---
+
 ## Invarianti da non rompere
 
 Ognuna è stata una decisione, non un caso. Cambiarle è legittimo, ma

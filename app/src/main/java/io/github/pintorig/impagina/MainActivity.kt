@@ -12,11 +12,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -26,16 +25,20 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
+import io.github.pintorig.impagina.ui.AnteprimaFoglio
+import io.github.pintorig.impagina.ui.AppIcons
+import io.github.pintorig.impagina.ui.BarraAzioni
+import io.github.pintorig.impagina.ui.Pannello
+import io.github.pintorig.impagina.ui.PannelloOpzioni
+import io.github.pintorig.impagina.ui.ImpaginaTheme
+import io.github.pintorig.impagina.ui.Nota
+import io.github.pintorig.impagina.ui.Spazi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -44,7 +47,10 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { AppScreen() } }
+        // Da bordo a bordo: le barre di sistema le colora il tema, non un
+        // valore fisso in themes.xml che in modalità scura era sbagliato.
+        enableEdgeToEdge()
+        setContent { ImpaginaTheme { AppScreen() } }
     }
 
     override fun onDestroy() {
@@ -78,6 +84,8 @@ fun AppScreen() {
     var presetName by remember { mutableStateOf("") }
     var exportResult by remember { mutableStateOf<ExportResult?>(null) }
     var weighing by remember { mutableStateOf(false) }
+    var opzioniAperte by remember { mutableStateOf(false) }
+    var sezioneAperta by remember { mutableStateOf<Pannello?>(null) }
 
     // `shots` resta la sorgente intatta; `rendered` è la versione filtrata che
     // finisce nell'anteprima e nel PDF. Cambiare filtro non degrada l'originale.
@@ -306,353 +314,144 @@ fun AppScreen() {
     }
 
     val type = spec.documentType
+    val pronto = rendered.any { it != null } && !busy && !filtering
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
-        snackbarHost = { SnackbarHost(snackbar) }
-    ) { padding ->
-        Column(
-            Modifier
-                .padding(padding)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Spacer(Modifier.height(0.dp))
-
-            // ---------- Preset ----------
-            if (presets.isNotEmpty()) {
-                Text("Preset", fontWeight = FontWeight.SemiBold)
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    presets.forEach { preset ->
-                        InputChip(
-                            selected = false,
-                            onClick = { applyPreset(preset) },
-                            label = { Text(preset.name) },
-                            trailingIcon = {
-                                Text(
-                                    "×",
-                                    modifier = Modifier.clickable {
-                                        presets = PresetCodec.remove(presets, preset.name)
-                                        store.save(presets)
-                                    }
-                                )
-                            }
-                        )
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    IconButton(onClick = { opzioniAperte = true }) {
+                        Icon(AppIcons.Opzioni, contentDescription = "Opzioni")
                     }
-                }
-            }
-
-            // ---------- Tipo di documento ----------
-            Text("Documento", fontWeight = FontWeight.SemiBold)
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                DocumentType.entries.forEach { t ->
-                    FilterChip(
-                        selected = type == t,
-                        onClick = { selectType(t) },
-                        label = { Text(t.label) }
-                    )
-                }
-            }
-            Text(type.hint, style = MaterialTheme.typography.bodySmall)
-
-            // ---------- Numero di facciate ----------
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Facciate: ${spec.slotCount}",
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
-                )
-                OutlinedIconButton(
-                    onClick = { setSlotCount(spec.slotCount - 1) },
-                    enabled = spec.slotCount > 1
-                ) { Text("−") }
-                Spacer(Modifier.width(8.dp))
-                OutlinedIconButton(
-                    onClick = { setSlotCount(spec.slotCount + 1) },
-                    enabled = spec.slotCount < PageLayouts.MAX_SLOTS
-                ) { Text("+") }
-            }
-
-            // ---------- Facciate ----------
-            PageLayouts.labelsFor(type, spec.slotCount).chunked(2).forEachIndexed { rowIndex, labelsInRow ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    labelsInRow.forEachIndexed { colIndex, label ->
-                        val i = rowIndex * 2 + colIndex
-                        SideCard(
-                            label = label,
-                            // la miniatura mostra il filtro, così l'effetto è
-                            // visibile subito senza scorrere fino all'anteprima
-                            bmp = rendered.getOrNull(i) ?: shots.getOrNull(i),
-                            ratio = type.previewRatio,
-                            modifier = Modifier.weight(1f),
-                            onScan = { startScan(i) },
-                            onPick = {
-                                targetSlot = i
-                                pickFile.launch(arrayOf("image/*", "application/pdf"))
-                            },
-                            onRotate = { put(i, shots.getOrNull(i)?.rotatedBy(90)) },
-                            onClear = { put(i, null) },
-                            canMoveBack = Reorder.canMoveBack(i),
-                            canMoveForward = Reorder.canMoveForward(shots, i),
-                            onMoveBack = { moveSlot(i, i - 1) },
-                            onMoveForward = { moveSlot(i, i + 1) }
-                        )
-                    }
-                    if (labelsInRow.size == 1) Spacer(Modifier.weight(1f))
-                }
-            }
-
-            // ---------- Resa ----------
-            Text("Resa", fontWeight = FontWeight.SemiBold)
-            ChoiceRow(
-                labels = ImageFilter.entries.map { it.label },
-                selected = ImageFilter.entries.indexOf(filter),
-                onSelect = { filter = ImageFilter.entries[it] }
-            )
-            Text(filter.hint, style = MaterialTheme.typography.bodySmall)
-
-            if (spec.slotCount == 2) {
-                TextButton(
-                    onClick = { shots = Reorder.swap(shots, 0, 1) },
-                    enabled = shots.any { it != null }
-                ) { Text("Inverti le due facciate") }
-            }
-
-            // ---------- Layout di destinazione ----------
-            Text("Layout del foglio", fontWeight = FontWeight.SemiBold)
-
-            ChoiceRow(
-                labels = Sizing.entries.map { it.label },
-                selected = Sizing.entries.indexOf(spec.sizing),
-                enabled = type.physicalSize != null,
-                onSelect = { spec = spec.copy(sizing = Sizing.entries[it]) }
-            )
-            ChoiceRow(
-                labels = GridArrangement.entries.map { it.label },
-                selected = GridArrangement.entries.indexOf(spec.arrangement),
-                onSelect = { spec = spec.copy(arrangement = GridArrangement.entries[it]) }
-            )
-            ChoiceRow(
-                labels = PageOrientation.entries.map { it.label },
-                selected = PageOrientation.entries.indexOf(spec.orientation),
-                onSelect = { spec = spec.copy(orientation = PageOrientation.entries[it]) }
-            )
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(
-                    checked = spec.showLabels,
-                    onCheckedChange = { spec = spec.copy(showLabels = it) }
-                )
-                Spacer(Modifier.width(12.dp))
-                Text("Didascalie sotto ogni facciata")
-            }
-
-            // ---------- Filigrana ----------
-            Text("Filigrana", fontWeight = FontWeight.SemiBold)
-            ChoiceRow(
-                labels = WatermarkStyle.entries.map { it.label },
-                selected = WatermarkStyle.entries.indexOf(spec.watermark.style),
-                onSelect = {
-                    spec = spec.copy(
-                        watermark = spec.watermark.copy(style = WatermarkStyle.entries[it])
-                    )
-                }
-            )
-            Text(spec.watermark.style.hint, style = MaterialTheme.typography.bodySmall)
-
-            if (spec.watermark.style != WatermarkStyle.NONE) {
-                OutlinedTextField(
-                    value = spec.watermark.text,
-                    onValueChange = {
-                        spec = spec.copy(watermark = spec.watermark.copy(text = it))
-                    },
-                    label = { Text("Testo della filigrana") },
-                    supportingText = {
-                        Text("${WatermarkText.DATE_TOKEN} viene sostituito con la data di oggi.")
-                    },
-                    singleLine = false,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Watermark.PRESETS.forEach { preset ->
-                        AssistChip(
-                            onClick = {
-                                spec = spec.copy(watermark = spec.watermark.copy(text = preset))
-                            },
-                            label = { Text(preset) }
-                        )
-                    }
-                }
-                Text(
-                    "«Copia conforme all'originale» è un'autentica che solo un pubblico " +
-                        "ufficiale può rilasciare: una scritta apposta qui non la sostituisce.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            // ---------- Avviso di riduzione, con la correzione proposta ----------
-            if (plan.isScaledDown) {
-                val fix = PageLayouts.orientationThatFits(spec)
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
-                ) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            "Questa combinazione non entra a dimensione reale: " +
-                                "ridotta al ${plan.scalePercent}%.",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        if (fix != null && fix != spec.orientation) {
-                            TextButton(onClick = { spec = spec.copy(orientation = fix) }) {
-                                Text("Passa al foglio ${fix.label.lowercase()}")
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ---------- Anteprima ----------
-            preview?.let {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (plan.isMultiPage) "Anteprima — pagina ${previewPage + 1} di ${plan.pageCount}"
-                        else "Anteprima",
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (plan.isMultiPage) {
-                        OutlinedIconButton(
-                            onClick = { previewPage-- },
-                            enabled = previewPage > 0
-                        ) { Text("‹") }
-                        Spacer(Modifier.width(8.dp))
-                        OutlinedIconButton(
-                            onClick = { previewPage++ },
-                            enabled = previewPage < plan.pageCount - 1
-                        ) { Text("›") }
-                    }
-                }
-                Image(
-                    bitmap = it.asImageBitmap(),
-                    contentDescription = "Anteprima della pagina A4",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(plan.first.pageWidthPt / plan.first.pageHeightPt)
-                        .background(Color.White)
-                )
-            }
-
-            // ---------- Formato di uscita ----------
-            Text("File di uscita", fontWeight = FontWeight.SemiBold)
-            ChoiceRow(
-                labels = OutputFormat.entries.map { it.label },
-                selected = OutputFormat.entries.indexOf(format),
-                // i formati immagine non reggono più di una pagina
-                enabled = !plan.isMultiPage,
-                onSelect = { export = export.copy(format = OutputFormat.entries[it]) }
-            )
-            Text(
-                if (plan.isMultiPage) {
-                    "Il piano occupa ${plan.pageCount} pagine: solo il PDF può contenerle tutte."
-                } else {
-                    format.hint
                 },
-                style = MaterialTheme.typography.bodySmall
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
-
-            // La risoluzione riguarda solo i formati immagine: il PDF incorpora
-            // i pixel originali e non ha una densità propria.
-            if (format.isRaster) {
-                ChoiceRow(
-                    labels = ExportResolution.entries.map { it.label },
-                    selected = ExportResolution.entries.indexOf(resolution),
-                    onSelect = { export = export.copy(resolution = ExportResolution.entries[it]) }
-                )
-                Text(resolution.hint, style = MaterialTheme.typography.bodySmall)
-            }
-
-            if (format.isLossy) {
-                Text("Qualità $quality", style = MaterialTheme.typography.bodyMedium)
-                Slider(
-                    value = quality.toFloat(),
-                    onValueChange = { export = export.copy(quality = it.toInt()) },
-                    valueRange = QUALITY_MIN.toFloat()..QUALITY_MAX.toFloat(),
-                    steps = QUALITY_STEPS.size - 2,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    "Sotto 60 gli artefatti iniziano a intaccare i caratteri piccoli.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SIZE_TARGETS.forEach { target ->
-                        AssistChip(
-                            enabled = !weighing && rendered.any { it != null },
-                            onClick = { fitToTarget(target) },
-                            label = { Text("≤ ${Sizes.format(target)}") }
-                        )
-                    }
-                }
-            }
-
-            Text(
-                when {
+        },
+        bottomBar = {
+            BarraAzioni(
+                peso = when {
                     weighing -> "Calcolo del peso…"
-                    exportResult != null -> "Peso del file: ${exportResult!!.sizeLabel}"
-                    else -> "Peso del file: —"
+                    exportResult != null -> exportResult!!.sizeLabel
+                    else -> "—"
                 },
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
+                formato = format.label,
+                pronto = pronto,
+                occupato = busy || filtering || weighing,
+                onSalva = {
+                    saveFile.launch(format.mimeType to FileNames.forDocument(type.label, format))
+                },
+                onCondividi = { shareDocument() }
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbar) },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { padding ->
+        Column(Modifier.padding(padding).fillMaxSize()) {
+
+            // Il foglio si prende tutto lo spazio che avanza: e' il contenuto.
+            AnteprimaFoglio(
+                anteprima = preview,
+                piano = plan,
+                pagina = previewPage,
+                scatti = shots,
+                onPagina = { previewPage = it },
+                onScatta = { startScan(it) },
+                onScegli = {
+                    targetSlot = it
+                    pickFile.launch(arrayOf("image/*", "application/pdf"))
+                },
+                onRuota = { put(it, shots.getOrNull(it)?.rotatedBy(90)) },
+                onTogli = { put(it, null) },
+                onSposta = { da, a -> moveSlot(da, a) },
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = Spazi.bordo, vertical = Spazi.fra)
             )
 
-            val ready = rendered.any { it != null } && !busy && !filtering
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(
-                    onClick = {
-                        saveFile.launch(
-                            format.mimeType to FileNames.forDocument(type.label, format)
-                        )
-                    },
-                    enabled = ready,
-                    modifier = Modifier.weight(1f)
-                ) { Text("Salva ${format.label}") }
-
-                OutlinedButton(
-                    onClick = { shareDocument() },
-                    enabled = ready,
-                    modifier = Modifier.weight(1f)
-                ) { Text("Condividi") }
+            val disposizioneMigliore = PageLayouts.arrangementThatFitsOnePage(spec)
+            if (plan.isMultiPage && disposizioneMigliore != null) {
+                AvvisoPagine(
+                    pagine = plan.pageCount,
+                    rimedio = disposizioneMigliore,
+                    onRimedio = { spec = spec.copy(arrangement = it) },
+                    modifier = Modifier.padding(horizontal = Spazi.bordo, vertical = Spazi.stretto)
+                )
             }
 
-            TextButton(
-                onClick = { presetName = ""; namingPreset = true },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Salva queste impostazioni come preset") }
+            if (plan.isScaledDown) {
+                AvvisoRiduzione(
+                    percentuale = plan.scalePercent,
+                    rimedio = PageLayouts.orientationThatFits(spec)?.takeIf { it != spec.orientation },
+                    onRimedio = { spec = spec.copy(orientation = it) },
+                    modifier = Modifier.padding(horizontal = Spazi.bordo, vertical = Spazi.stretto)
+                )
+            }
+        }
+    }
 
-            if (busy || filtering || weighing) LinearProgressIndicator(Modifier.fillMaxWidth())
-
-            Text(
-                "Tutta l'elaborazione avviene sul dispositivo: nessuna immagine viene inviata in rete. " +
-                    "I preset contengono solo impostazioni, mai le scansioni.",
-                style = MaterialTheme.typography.bodySmall
-            )
-            Spacer(Modifier.height(24.dp))
+    if (opzioniAperte) {
+        PannelloOpzioni(
+            spec = spec,
+            filtro = filter,
+            export = export,
+            piano = plan,
+            dimensioneRealePossibile = type.physicalSize != null,
+            pesabile = rendered.any { it != null },
+            inPesatura = weighing,
+            inversionePossibile = shots.any { it != null },
+            quante = spec.slotCount,
+            onQuante = { setSlotCount(it) },
+            sezione = sezioneAperta,
+            onSezione = { sezioneAperta = it },
+            onSpec = { nuovo ->
+                // cambiare tipo documento riallinea le facciate
+                if (nuovo.documentType != spec.documentType) {
+                    shots = List(nuovo.slotCount) { null }
+                }
+                spec = nuovo
+            },
+            onCombinazione = { c ->
+                val quanti = c?.slotCount ?: spec.documentType.slotLabels.size
+                spec = spec.copy(
+                    combinazione = c,
+                    documentType = c?.documenti?.first() ?: spec.documentType,
+                    slotCount = quanti,
+                    // Le etichette sono ordinate fronte, retro, fronte, retro:
+                    // con due colonne il riempimento per righe mette da solo le
+                    // due facciate di uno stesso documento sulla stessa riga.
+                    // In colonna singola tornerebbero una sotto l'altra.
+                    arrangement = if (c != null) {
+                        GridArrangement.SIDE_BY_SIDE
+                    } else {
+                        GridArrangement.STACKED
+                    }
+                )
+                // Le foto restano dove sono: l'etichetta segue la posizione, e
+                // se l'ordine non torna si sposta dal foglio.
+                shots = List(quanti) { shots.getOrNull(it) }
+            },
+            onFiltro = { filter = it },
+            onExport = { export = it },
+            onFiligrana = { spec = spec.copy(watermark = it) },
+            onInverti = { shots = Reorder.swap(shots, 0, 1) },
+            onTetto = { fitToTarget(it) },
+            onSalvaPreset = { presetName = ""; namingPreset = true },
+            onChiudi = { opzioniAperte = false }
+        ) {
+            if (presets.isNotEmpty()) {
+                RigaPreset(
+                    presets = presets,
+                    onApplica = { applyPreset(it) },
+                    onElimina = {
+                        presets = PresetCodec.remove(presets, it.name)
+                        store.save(presets)
+                    }
+                )
+            }
         }
     }
 
@@ -669,11 +468,8 @@ fun AppScreen() {
                         singleLine = true
                     )
                     if (presets.size >= PresetCodec.MAX_PRESETS) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Sono già ${PresetCodec.MAX_PRESETS}: il più vecchio verrà scartato.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                        Spacer(Modifier.height(Spazi.stretto))
+                        Nota("Sono già ${PresetCodec.MAX_PRESETS}: il più vecchio verrà scartato.")
                     }
                 }
             },
@@ -697,6 +493,102 @@ fun AppScreen() {
     }
 }
 
+/** I preset salvati, applicabili con un tocco. */
+@Composable
+private fun RigaPreset(
+    presets: List<Preset>,
+    onApplica: (Preset) -> Unit,
+    onElimina: (Preset) -> Unit
+) {
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(Spazi.stretto)
+    ) {
+        presets.forEach { preset ->
+            InputChip(
+                selected = false,
+                onClick = { onApplica(preset) },
+                label = { Text(preset.name) },
+                trailingIcon = {
+                    Icon(
+                        AppIcons.Chiudi,
+                        contentDescription = "Elimina il preset ${preset.name}",
+                        modifier = Modifier.size(16.dp).clickable { onElimina(preset) }
+                    )
+                }
+            )
+        }
+    }
+}
+
+/**
+ * La combinazione non entra a dimensione reale. L'avviso sta sotto il foglio,
+ * dove si vede l'effetto, e propone il rimedio invece di limitarsi a constatare.
+ */
+@Composable
+private fun AvvisoRiduzione(
+    percentuale: Int,
+    rimedio: PageOrientation?,
+    onRimedio: (PageOrientation) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.errorContainer
+    ) {
+        Row(
+            Modifier.padding(horizontal = Spazi.fra, vertical = Spazi.stretto),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Non entra a dimensione reale: ridotta al $percentuale%.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.weight(1f)
+            )
+            if (rimedio != null) {
+                TextButton(onClick = { onRimedio(rimedio) }) {
+                    Text("Foglio ${rimedio.label.lowercase()}")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Servono piu' fogli, ma una disposizione diversa ne basterebbe uno.
+ * Stessa forma dell'avviso di riduzione: constata e propone il rimedio.
+ */
+@Composable
+private fun AvvisoPagine(
+    pagine: Int,
+    rimedio: GridArrangement,
+    onRimedio: (GridArrangement) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.secondaryContainer
+    ) {
+        Row(
+            Modifier.padding(horizontal = Spazi.fra, vertical = Spazi.stretto),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Servono $pagine fogli.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = { onRimedio(rimedio) }) {
+                Text("Stai in uno: ${rimedio.label.lowercase()}")
+            }
+        }
+    }
+}
+
 /**
  * `CreateDocument` fissa il MIME type alla costruzione, mentre qui cambia con il
  * formato scelto. Un contratto su misura evita di registrare quattro launcher
@@ -711,98 +603,4 @@ private class CreateDocumentWithMime : ActivityResultContract<Pair<String, Strin
 
     override fun parseResult(resultCode: Int, intent: Intent?): Uri? =
         if (resultCode == Activity.RESULT_OK) intent?.data else null
-}
-
-/** Gruppo di scelte mutuamente esclusive, da due a quattro voci. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ChoiceRow(
-    labels: List<String>,
-    selected: Int,
-    onSelect: (Int) -> Unit,
-    enabled: Boolean = true
-) {
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        labels.forEachIndexed { i, label ->
-            SegmentedButton(
-                selected = i == selected,
-                onClick = { onSelect(i) },
-                enabled = enabled,
-                shape = SegmentedButtonDefaults.itemShape(i, labels.size)
-            ) { Text(label) }
-        }
-    }
-}
-
-@Composable
-private fun SideCard(
-    label: String,
-    bmp: Bitmap?,
-    ratio: Float,
-    modifier: Modifier = Modifier,
-    onScan: () -> Unit,
-    onPick: () -> Unit,
-    onRotate: () -> Unit,
-    onClear: () -> Unit,
-    canMoveBack: Boolean = false,
-    canMoveForward: Boolean = false,
-    onMoveBack: () -> Unit = {},
-    onMoveForward: () -> Unit = {}
-) {
-    OutlinedCard(modifier) {
-        Column(
-            Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                label,
-                fontWeight = FontWeight.SemiBold,
-                style = MaterialTheme.typography.bodySmall
-            )
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(ratio)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                if (bmp != null) {
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = label,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Text("vuoto", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = onScan, contentPadding = PaddingValues(8.dp)) { Text("Scatta") }
-                TextButton(onClick = onPick, contentPadding = PaddingValues(8.dp)) { Text("File") }
-            }
-            if (bmp != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = onRotate, contentPadding = PaddingValues(8.dp)) { Text("Ruota") }
-                    TextButton(onClick = onClear, contentPadding = PaddingValues(8.dp)) { Text("Togli") }
-                }
-                // Frecce di posizione e non trascinamento: le schede stanno in una
-                // colonna scorrevole, dove un drag dopo long-press litigherebbe
-                // con lo scroll.
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(
-                        onClick = onMoveBack,
-                        enabled = canMoveBack,
-                        contentPadding = PaddingValues(8.dp)
-                    ) { Text("◀") }
-                    TextButton(
-                        onClick = onMoveForward,
-                        enabled = canMoveForward,
-                        contentPadding = PaddingValues(8.dp)
-                    ) { Text("▶") }
-                }
-            }
-        }
-    }
 }
