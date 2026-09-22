@@ -34,15 +34,12 @@ import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import io.github.pintorig.impagina.ui.AnteprimaFoglio
 import io.github.pintorig.impagina.ui.AppIcons
 import io.github.pintorig.impagina.ui.BarraAzioni
+import io.github.pintorig.impagina.ui.Pannello
+import io.github.pintorig.impagina.ui.PannelloOpzioni
+import io.github.pintorig.impagina.ui.StrisciaFacciate
 import io.github.pintorig.impagina.ui.ImpaginaTheme
 import io.github.pintorig.impagina.ui.Nota
 import io.github.pintorig.impagina.ui.Spazi
-import io.github.pintorig.impagina.ui.sezioni.SezioneDocumento
-import io.github.pintorig.impagina.ui.sezioni.SezioneFacciate
-import io.github.pintorig.impagina.ui.sezioni.SezioneFile
-import io.github.pintorig.impagina.ui.sezioni.SezioneFiligrana
-import io.github.pintorig.impagina.ui.sezioni.SezioneFoglio
-import io.github.pintorig.impagina.ui.sezioni.SezioneResa
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -66,9 +63,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** Le sezioni si aprono una per volta: la schermata resta leggibile in un colpo d'occhio. */
-private enum class Pannello { DOCUMENTO, FACCIATE, RESA, FOGLIO, FILIGRANA, FILE }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppScreen() {
@@ -91,7 +85,8 @@ fun AppScreen() {
     var presetName by remember { mutableStateOf("") }
     var exportResult by remember { mutableStateOf<ExportResult?>(null) }
     var weighing by remember { mutableStateOf(false) }
-    var pannello by remember { mutableStateOf<Pannello?>(Pannello.FACCIATE) }
+    var opzioniAperte by remember { mutableStateOf(false) }
+    var sezioneAperta by remember { mutableStateOf<Pannello?>(null) }
 
     // `shots` resta la sorgente intatta; `rendered` è la versione filtrata che
     // finisce nell'anteprima e nel PDF. Cambiare filtro non degrada l'originale.
@@ -321,12 +316,16 @@ fun AppScreen() {
 
     val type = spec.documentType
     val pronto = rendered.any { it != null } && !busy && !filtering
-    fun apri(p: Pannello) { pannello = if (pannello == p) null else p }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    IconButton(onClick = { opzioniAperte = true }) {
+                        Icon(AppIcons.Opzioni, contentDescription = "Opzioni")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
@@ -353,15 +352,14 @@ fun AppScreen() {
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
 
-            // Il foglio sta in alto e non scorre via: si vede cambiare mentre
-            // si toccano i controlli, che è il senso dell'app.
+            // Il foglio si prende tutto lo spazio che avanza: e' il contenuto.
             AnteprimaFoglio(
                 anteprima = preview,
                 piano = plan,
                 pagina = previewPage,
                 onPagina = { previewPage = it },
                 modifier = Modifier
-                    .weight(4f)
+                    .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = Spazi.bordo, vertical = Spazi.fra)
             )
@@ -371,96 +369,66 @@ fun AppScreen() {
                     percentuale = plan.scalePercent,
                     rimedio = PageLayouts.orientationThatFits(spec)?.takeIf { it != spec.orientation },
                     onRimedio = { spec = spec.copy(orientation = it) },
-                    modifier = Modifier.padding(horizontal = Spazi.bordo)
+                    modifier = Modifier.padding(horizontal = Spazi.bordo, vertical = Spazi.stretto)
                 )
             }
 
-            Column(
-                Modifier
-                    .weight(6f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Spazi.bordo),
-                verticalArrangement = Arrangement.spacedBy(Spazi.stretto)
-            ) {
-                Spacer(Modifier.height(Spazi.stretto))
+            // Le facciate restano qui: sono il contenuto, non un'impostazione.
+            StrisciaFacciate(
+                tipo = type,
+                quante = spec.slotCount,
+                scatti = shots,
+                resi = rendered,
+                onQuante = { setSlotCount(it) },
+                onScatta = { startScan(it) },
+                onScegli = {
+                    targetSlot = it
+                    pickFile.launch(arrayOf("image/*", "application/pdf"))
+                },
+                onRuota = { put(it, shots.getOrNull(it)?.rotatedBy(90)) },
+                onTogli = { put(it, null) },
+                onSposta = { da, a -> moveSlot(da, a) },
+                modifier = Modifier.padding(bottom = Spazi.fra)
+            )
+        }
+    }
 
-                if (presets.isNotEmpty()) {
-                    RigaPreset(
-                        presets = presets,
-                        onApplica = { applyPreset(it) },
-                        onElimina = {
-                            presets = PresetCodec.remove(presets, it.name)
-                            store.save(presets)
-                        }
-                    )
+    if (opzioniAperte) {
+        PannelloOpzioni(
+            spec = spec,
+            filtro = filter,
+            export = export,
+            piano = plan,
+            dimensioneRealePossibile = type.physicalSize != null,
+            pesabile = rendered.any { it != null },
+            inPesatura = weighing,
+            inversionePossibile = shots.any { it != null },
+            sezione = sezioneAperta,
+            onSezione = { sezioneAperta = it },
+            onSpec = { nuovo ->
+                // cambiare tipo documento riallinea le facciate
+                if (nuovo.documentType != spec.documentType) {
+                    shots = List(nuovo.slotCount) { null }
                 }
-
-                SezioneDocumento(
-                    tipo = type,
-                    aperta = pannello == Pannello.DOCUMENTO,
-                    onToggle = { apri(Pannello.DOCUMENTO) },
-                    onTipo = { selectType(it) }
+                spec = nuovo
+            },
+            onFiltro = { filter = it },
+            onExport = { export = it },
+            onFiligrana = { spec = spec.copy(watermark = it) },
+            onInverti = { shots = Reorder.swap(shots, 0, 1) },
+            onTetto = { fitToTarget(it) },
+            onSalvaPreset = { presetName = ""; namingPreset = true },
+            onChiudi = { opzioniAperte = false }
+        ) {
+            if (presets.isNotEmpty()) {
+                RigaPreset(
+                    presets = presets,
+                    onApplica = { applyPreset(it) },
+                    onElimina = {
+                        presets = PresetCodec.remove(presets, it.name)
+                        store.save(presets)
+                    }
                 )
-                SezioneFacciate(
-                    tipo = type,
-                    quante = spec.slotCount,
-                    scatti = shots,
-                    resi = rendered,
-                    aperta = pannello == Pannello.FACCIATE,
-                    onToggle = { apri(Pannello.FACCIATE) },
-                    onQuante = { setSlotCount(it) },
-                    onScatta = { startScan(it) },
-                    onScegli = {
-                        targetSlot = it
-                        pickFile.launch(arrayOf("image/*", "application/pdf"))
-                    },
-                    onRuota = { put(it, shots.getOrNull(it)?.rotatedBy(90)) },
-                    onTogli = { put(it, null) },
-                    onSposta = { da, a -> moveSlot(da, a) }
-                )
-                SezioneResa(
-                    filtro = filter,
-                    dueFacciate = spec.slotCount == 2,
-                    inversionePossibile = shots.any { it != null },
-                    aperta = pannello == Pannello.RESA,
-                    onToggle = { apri(Pannello.RESA) },
-                    onFiltro = { filter = it },
-                    onInverti = { shots = Reorder.swap(shots, 0, 1) }
-                )
-                SezioneFoglio(
-                    spec = spec,
-                    dimensioneRealePossibile = type.physicalSize != null,
-                    aperta = pannello == Pannello.FOGLIO,
-                    onToggle = { apri(Pannello.FOGLIO) },
-                    onSpec = { spec = it }
-                )
-                SezioneFiligrana(
-                    filigrana = spec.watermark,
-                    aperta = pannello == Pannello.FILIGRANA,
-                    onToggle = { apri(Pannello.FILIGRANA) },
-                    onFiligrana = { spec = spec.copy(watermark = it) }
-                )
-                SezioneFile(
-                    export = export,
-                    piano = plan,
-                    pesabile = rendered.any { it != null },
-                    inPesatura = weighing,
-                    aperta = pannello == Pannello.FILE,
-                    onToggle = { apri(Pannello.FILE) },
-                    onExport = { export = it },
-                    onTetto = { fitToTarget(it) }
-                )
-
-                TextButton(
-                    onClick = { presetName = ""; namingPreset = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Salva queste impostazioni come preset") }
-
-                Nota(
-                    "Tutta l'elaborazione avviene sul dispositivo: nessuna immagine viene " +
-                        "inviata in rete. I preset contengono solo impostazioni, mai le scansioni."
-                )
-                Spacer(Modifier.height(Spazi.fra))
             }
         }
     }

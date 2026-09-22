@@ -114,6 +114,25 @@ object AppIcons {
         }
     }
 
+    /** Opzioni: tre cursori. Le manopole sono vuote e le linee si interrompono,
+     *  per restare nella stessa famiglia a tratto di tutte le altre. */
+    val Opzioni: ImageVector = icona("Opzioni") {
+        tratto {
+            moveTo(3f, 7f); lineTo(5.4f, 7f); moveTo(10.6f, 7f); lineTo(21f, 7f)
+            moveTo(3f, 12f); lineTo(13.4f, 12f); moveTo(18.6f, 12f); lineTo(21f, 12f)
+            moveTo(3f, 17f); lineTo(3.9f, 17f); moveTo(9.1f, 17f); lineTo(21f, 17f)
+            moveTo(10.3f, 7f)
+            arcTo(2.3f, 2.3f, 0f, true, true, 5.7f, 7f)
+            arcTo(2.3f, 2.3f, 0f, true, true, 10.3f, 7f)
+            moveTo(18.3f, 12f)
+            arcTo(2.3f, 2.3f, 0f, true, true, 13.7f, 12f)
+            arcTo(2.3f, 2.3f, 0f, true, true, 18.3f, 12f)
+            moveTo(8.8f, 17f)
+            arcTo(2.3f, 2.3f, 0f, true, true, 4.2f, 17f)
+            arcTo(2.3f, 2.3f, 0f, true, true, 8.8f, 17f)
+        }
+    }
+
     val Chiudi: ImageVector = icona("Chiudi") {
         tratto {
             moveTo(6.5f, 6.5f); lineTo(17.5f, 17.5f)

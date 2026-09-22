@@ -18,10 +18,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.github.pintorig.impagina.ui.AnteprimaFoglio
 import io.github.pintorig.impagina.ui.BarraAzioni
+import io.github.pintorig.impagina.ui.StrisciaFacciate
 import io.github.pintorig.impagina.ui.ImpaginaTheme
 import io.github.pintorig.impagina.ui.Spazi
 import io.github.pintorig.impagina.ui.sezioni.SezioneDocumento
-import io.github.pintorig.impagina.ui.sezioni.SezioneFacciate
 import io.github.pintorig.impagina.ui.sezioni.SezioneFile
 import io.github.pintorig.impagina.ui.sezioni.SezioneFoglio
 import io.github.pintorig.impagina.ui.sezioni.SezioneFiligrana
@@ -43,7 +43,11 @@ import io.github.pintorig.impagina.ui.sezioni.SezioneResa
 private val spec = LayoutSpec()
 private val piano = PageLayouts.computePlan(spec)
 
-/** La schermata come si presenta all'avvio, senza nulla di acquisito. */
+/**
+ * La schermata come si presenta all'avvio: il foglio si prende tutto, le
+ * facciate stanno in una striscia sotto, le impostazioni non ci sono — vivono
+ * nel pannello che sale dal basso.
+ */
 @Composable
 private fun SchermataIniziale() {
     Column(
@@ -54,38 +58,21 @@ private fun SchermataIniziale() {
             piano = piano,
             pagina = 0,
             onPagina = {},
-            modifier = Modifier.weight(4f).fillMaxWidth()
+            modifier = Modifier.weight(1f).fillMaxWidth()
                 .padding(horizontal = Spazi.bordo, vertical = Spazi.fra)
         )
-        Column(
-            Modifier.weight(6f).padding(horizontal = Spazi.bordo),
-            verticalArrangement = Arrangement.spacedBy(Spazi.stretto)
-        ) {
-            SezioneDocumento(DocumentType.CARTA_IDENTITA, false, {}, {})
-            SezioneFacciate(
-                tipo = DocumentType.CARTA_IDENTITA,
-                quante = 2,
-                scatti = listOf(null, null),
-                resi = emptyList(),
-                aperta = true,
-                onToggle = {}, onQuante = {}, onScatta = {}, onScegli = {},
-                onRuota = {}, onTogli = {}, onSposta = { _, _ -> }
-            )
-            SezioneResa(ImageFilter.NONE, true, false, false, {}, {}, {})
-            SezioneFoglio(spec, true, false, {}, {})
-            SezioneFile(ExportSpec(), piano, false, false, false, {}, {}, {})
-        }
+        StrisciaFacciate(
+            tipo = DocumentType.CARTA_IDENTITA,
+            quante = 2,
+            scatti = listOf(null, null),
+            resi = emptyList(),
+            onQuante = {}, onScatta = {}, onScegli = {},
+            onRuota = {}, onTogli = {}, onSposta = { _, _ -> },
+            modifier = Modifier.padding(bottom = Spazi.fra)
+        )
         BarraAzioni("—", "PDF", false, false, {}, {})
     }
 }
-
-@Preview(name = "Avvio — chiaro", device = "spec:width=411dp,height=914dp", showBackground = true)
-@Composable
-fun AnteprimaChiara() = ImpaginaTheme(scuro = false) { SchermataIniziale() }
-
-@Preview(name = "Avvio — scuro", device = "spec:width=411dp,height=914dp", showBackground = true)
-@Composable
-fun AnteprimaScura() = ImpaginaTheme(scuro = true) { SchermataIniziale() }
 
 /** Le sezioni tutte chiuse: si legge il valore a destra di ognuna? */
 @Composable
@@ -96,17 +83,13 @@ private fun SoloSezioni() {
         verticalArrangement = Arrangement.spacedBy(Spazi.stretto)
     ) {
         SezioneDocumento(DocumentType.PASSAPORTO, false, {}, {})
-        SezioneFacciate(
-            DocumentType.PASSAPORTO, 4, listOf(null, null, null, null), emptyList(),
-            false, {}, {}, {}, {}, {}, {}, { _, _ -> }
-        )
         SezioneResa(ImageFilter.GRAYSCALE, false, false, false, {}, {}, {})
         SezioneFoglio(spec, true, false, {}, {})
         SezioneFile(ExportSpec(), piano, false, false, false, {}, {}, {})
     }
 }
 
-@Preview(name = "Sezioni chiuse", widthDp = 411, showBackground = true)
+@Preview(name = "Pannello opzioni", widthDp = 411, showBackground = true)
 @Composable
 fun AnteprimaSezioni() = ImpaginaTheme(scuro = false) { SoloSezioni() }
 
