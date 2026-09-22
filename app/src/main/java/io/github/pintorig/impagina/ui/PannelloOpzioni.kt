@@ -47,6 +47,8 @@ fun PannelloOpzioni(
     export: ExportSpec,
     piano: PagePlan,
     dimensioneRealePossibile: Boolean,
+    quante: Int,
+    onQuante: (Int) -> Unit,
     pesabile: Boolean,
     inPesatura: Boolean,
     inversionePossibile: Boolean,
@@ -82,7 +84,9 @@ fun PannelloOpzioni(
                 tipo = spec.documentType,
                 aperta = sezione == Pannello.DOCUMENTO,
                 onToggle = { apri(Pannello.DOCUMENTO) },
-                onTipo = { onSpec(spec.copy(documentType = it, slotCount = it.slotLabels.size)) }
+                onTipo = { onSpec(spec.copy(documentType = it, slotCount = it.slotLabels.size)) },
+                quante = quante,
+                onQuante = onQuante
             )
             SezioneResa(
                 filtro = filtro,

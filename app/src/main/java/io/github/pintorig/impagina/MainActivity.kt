@@ -36,7 +36,6 @@ import io.github.pintorig.impagina.ui.AppIcons
 import io.github.pintorig.impagina.ui.BarraAzioni
 import io.github.pintorig.impagina.ui.Pannello
 import io.github.pintorig.impagina.ui.PannelloOpzioni
-import io.github.pintorig.impagina.ui.StrisciaFacciate
 import io.github.pintorig.impagina.ui.ImpaginaTheme
 import io.github.pintorig.impagina.ui.Nota
 import io.github.pintorig.impagina.ui.Spazi
@@ -357,7 +356,16 @@ fun AppScreen() {
                 anteprima = preview,
                 piano = plan,
                 pagina = previewPage,
+                scatti = shots,
                 onPagina = { previewPage = it },
+                onScatta = { startScan(it) },
+                onScegli = {
+                    targetSlot = it
+                    pickFile.launch(arrayOf("image/*", "application/pdf"))
+                },
+                onRuota = { put(it, shots.getOrNull(it)?.rotatedBy(90)) },
+                onTogli = { put(it, null) },
+                onSposta = { da, a -> moveSlot(da, a) },
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
@@ -372,24 +380,6 @@ fun AppScreen() {
                     modifier = Modifier.padding(horizontal = Spazi.bordo, vertical = Spazi.stretto)
                 )
             }
-
-            // Le facciate restano qui: sono il contenuto, non un'impostazione.
-            StrisciaFacciate(
-                tipo = type,
-                quante = spec.slotCount,
-                scatti = shots,
-                resi = rendered,
-                onQuante = { setSlotCount(it) },
-                onScatta = { startScan(it) },
-                onScegli = {
-                    targetSlot = it
-                    pickFile.launch(arrayOf("image/*", "application/pdf"))
-                },
-                onRuota = { put(it, shots.getOrNull(it)?.rotatedBy(90)) },
-                onTogli = { put(it, null) },
-                onSposta = { da, a -> moveSlot(da, a) },
-                modifier = Modifier.padding(bottom = Spazi.fra)
-            )
         }
     }
 
@@ -403,6 +393,8 @@ fun AppScreen() {
             pesabile = rendered.any { it != null },
             inPesatura = weighing,
             inversionePossibile = shots.any { it != null },
+            quante = spec.slotCount,
+            onQuante = { setSlotCount(it) },
             sezione = sezioneAperta,
             onSezione = { sezioneAperta = it },
             onSpec = { nuovo ->
