@@ -33,41 +33,97 @@ enum class DocumentType(
     val label: String,
     val physicalSize: PhysicalSize?,
     val slotLabels: List<String>,
-    val hint: String
+    val hint: String,
+    /** Nome corto: negli slot di un template misto non c'è posto per quello lungo. */
+    val shortLabel: String = label
 ) {
     CARTA_IDENTITA(
         label = "Carta d'identità",
         physicalSize = Formats.ID1,
         slotLabels = listOf("Fronte", "Retro"),
-        hint = "CIE in formato tessera. Per la vecchia carta cartacea usa «Altro»."
+        hint = "CIE in formato tessera. Per la vecchia carta cartacea usa «Altro».",
+        shortLabel = "Identità"
     ),
     PATENTE(
         label = "Patente",
         physicalSize = Formats.ID1,
         slotLabels = listOf("Fronte", "Retro"),
-        hint = "Patente in formato tessera. Per il vecchio modello cartaceo a tre ante usa «Altro» in orizzontale."
+        hint = "Patente in formato tessera. Per il vecchio modello cartaceo a tre ante usa «Altro» in orizzontale.",
+        shortLabel = "Patente"
     ),
     TESSERA_SANITARIA(
         label = "Tessera sanitaria",
         physicalSize = Formats.ID1,
         slotLabels = listOf("Fronte (codice fiscale)", "Retro (tessera TEAM)"),
-        hint = "Stesso formato tessera. Il retro è la tessera europea di assicurazione malattia."
+        hint = "Stesso formato tessera. Il retro è la tessera europea di assicurazione malattia.",
+        shortLabel = "Sanitaria"
     ),
     PASSAPORTO(
         label = "Passaporto",
         physicalSize = Formats.ID3,
         slotLabels = listOf("Pagina dati", "Pagina firma"),
-        hint = "Pagina singola del libretto (ID-3). Aggiungi facciate per visti e timbri."
+        hint = "Pagina singola del libretto (ID-3). Aggiungi facciate per visti e timbri.",
+        shortLabel = "Passaporto"
     ),
     ALTRO(
         label = "Altro documento",
         physicalSize = null,
         slotLabels = listOf("Fronte", "Retro"),
-        hint = "Dimensione non nota: l'impaginazione si adatta alla pagina mantenendo le proporzioni."
+        hint = "Dimensione non nota: l'impaginazione si adatta alla pagina mantenendo le proporzioni.",
+        shortLabel = "Altro"
     );
 
     /** Proporzioni da usare per i segnaposto nell'anteprima. */
     val previewRatio: Float get() = physicalSize?.aspectRatio ?: 1.5f
+}
+
+/**
+ * Un template che mette piu' documenti sullo stesso foglio.
+ *
+ * Tutte le combinazioni usano solo documenti **ID-1** — carta d'identità,
+ * patente, tessera sanitaria — e non è una svista: il motore calcola una sola
+ * dimensione di cella per l'intero piano, e mescolare un ID-3 richiederebbe
+ * celle diverse sulla stessa pagina. Un test presidia la regola.
+ *
+ * Ogni documento porta le sue due facciate, nell'ordine dichiarato.
+ */
+enum class Combinazione(val label: String, val documenti: List<DocumentType>) {
+    IDENTITA_SANITARIA(
+        "Identità + tessera sanitaria",
+        listOf(DocumentType.CARTA_IDENTITA, DocumentType.TESSERA_SANITARIA)
+    ),
+    IDENTITA_PATENTE(
+        "Identità + patente",
+        listOf(DocumentType.CARTA_IDENTITA, DocumentType.PATENTE)
+    ),
+    SANITARIA_PATENTE(
+        "Tessera sanitaria + patente",
+        listOf(DocumentType.TESSERA_SANITARIA, DocumentType.PATENTE)
+    ),
+    IDENTITA_SANITARIA_PATENTE(
+        "Identità + sanitaria + patente",
+        listOf(
+            DocumentType.CARTA_IDENTITA,
+            DocumentType.TESSERA_SANITARIA,
+            DocumentType.PATENTE
+        )
+    );
+
+    /** Due facciate per documento. */
+    val slotCount: Int get() = documenti.size * 2
+
+    /** Il formato fisico comune: è quello che permette la cella unica. */
+    val physicalSize: PhysicalSize? get() = documenti.first().physicalSize
+
+    /**
+     * Le etichette, nell'ordine degli slot: ogni documento contribuisce fronte
+     * e retro, con il nome corto davanti perché nel foglio si capisca a quale
+     * documento appartiene una facciata.
+     */
+    val labels: List<String>
+        get() = documenti.flatMap { doc ->
+            listOf("${doc.shortLabel} · fronte", "${doc.shortLabel} · retro")
+        }
 }
 
 /* =========================================================================
@@ -96,6 +152,8 @@ enum class PageOrientation(val label: String) {
 
 data class LayoutSpec(
     val documentType: DocumentType = DocumentType.CARTA_IDENTITA,
+    /** Quando c'è, detta documenti ed etichette al posto di `documentType`. */
+    val combinazione: Combinazione? = null,
     val sizing: Sizing = Sizing.ACTUAL,
     val arrangement: GridArrangement = GridArrangement.STACKED,
     val orientation: PageOrientation = PageOrientation.PORTRAIT,
@@ -252,7 +310,7 @@ object PageLayouts {
             slotH = (usableH - (rowsPerPage - 1) * gap) / rowsPerPage - labelH
         }
 
-        val labels = labelsFor(spec.documentType, n)
+        val labels = labelsFor(spec, n)
 
         val pages = (0 until pageCount).map { pageIndex ->
             val firstSlot = pageIndex * perPage
@@ -329,6 +387,12 @@ object PageLayouts {
         (0 until count).map { i ->
             type.slotLabels.getOrNull(i) ?: "Pagina ${i + 1}"
         }
+
+    /** Con un template misto le etichette vengono da lì, non dal tipo singolo. */
+    fun labelsFor(spec: LayoutSpec, count: Int): List<String> {
+        val da = spec.combinazione?.labels ?: return labelsFor(spec.documentType, count)
+        return (0 until count).map { i -> da.getOrNull(i) ?: "Facciata ${i + 1}" }
+    }
 
     /**
      * Suggerisce l'orientamento che consente la stampa 1:1, quando esiste.

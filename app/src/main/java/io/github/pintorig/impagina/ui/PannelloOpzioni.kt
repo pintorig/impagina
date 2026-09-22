@@ -22,15 +22,17 @@ import io.github.pintorig.impagina.ExportSpec
 import io.github.pintorig.impagina.ImageFilter
 import io.github.pintorig.impagina.LayoutSpec
 import io.github.pintorig.impagina.PagePlan
+import io.github.pintorig.impagina.Combinazione
 import io.github.pintorig.impagina.Watermark
 import io.github.pintorig.impagina.ui.sezioni.SezioneDocumento
 import io.github.pintorig.impagina.ui.sezioni.SezioneFile
 import io.github.pintorig.impagina.ui.sezioni.SezioneFiligrana
 import io.github.pintorig.impagina.ui.sezioni.SezioneFoglio
 import io.github.pintorig.impagina.ui.sezioni.SezioneResa
+import io.github.pintorig.impagina.ui.sezioni.SezioneTemplate
 
 /** Quale sezione è aperta nel pannello: una per volta. */
-enum class Pannello { DOCUMENTO, RESA, FOGLIO, FILIGRANA, FILE }
+enum class Pannello { DOCUMENTO, TEMPLATE, RESA, FOGLIO, FILIGRANA, FILE }
 
 /**
  * Le impostazioni, che salgono dal basso solo quando servono.
@@ -55,6 +57,7 @@ fun PannelloOpzioni(
     sezione: Pannello?,
     onSezione: (Pannello?) -> Unit,
     onSpec: (LayoutSpec) -> Unit,
+    onCombinazione: (Combinazione?) -> Unit,
     onFiltro: (ImageFilter) -> Unit,
     onExport: (ExportSpec) -> Unit,
     onFiligrana: (Watermark) -> Unit,
@@ -87,6 +90,12 @@ fun PannelloOpzioni(
                 onTipo = { onSpec(spec.copy(documentType = it, slotCount = it.slotLabels.size)) },
                 quante = quante,
                 onQuante = onQuante
+            )
+            SezioneTemplate(
+                combinazione = spec.combinazione,
+                aperta = sezione == Pannello.TEMPLATE,
+                onToggle = { apri(Pannello.TEMPLATE) },
+                onCombinazione = onCombinazione
             )
             SezioneResa(
                 filtro = filtro,

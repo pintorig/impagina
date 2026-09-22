@@ -404,6 +404,17 @@ fun AppScreen() {
                 }
                 spec = nuovo
             },
+            onCombinazione = { c ->
+                val quanti = c?.slotCount ?: spec.documentType.slotLabels.size
+                spec = spec.copy(
+                    combinazione = c,
+                    documentType = c?.documenti?.first() ?: spec.documentType,
+                    slotCount = quanti
+                )
+                // Le foto restano dove sono: l'etichetta segue la posizione, e
+                // se l'ordine non torna si sposta dal foglio.
+                shots = List(quanti) { shots.getOrNull(it) }
+            },
             onFiltro = { filter = it },
             onExport = { export = it },
             onFiligrana = { spec = spec.copy(watermark = it) },
