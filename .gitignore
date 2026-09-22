@@ -5,6 +5,11 @@ local.properties
 
 # Android Studio / IntelliJ
 .idea/
+# Studio lo genera al sync e ci fissa il JDK del suo JBR (la 25). Committarlo
+# imporrebbe quella versione anche alla CI, che gira su JDK 17: se un giorno
+# si vuole allineare locale e pipeline, lo si fa di proposito con
+# ./gradlew updateDaemonJvm --jvm-version=17, non per effetto di un sync.
+gradle/gradle-daemon-jvm.properties
 *.iml
 captures/
 .externalNativeBuild/
