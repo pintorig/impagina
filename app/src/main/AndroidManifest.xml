@@ -1,12 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
       Nessun permesso dichiarato, di proposito:
       - lo scanner ML Kit gira dentro Google Play Services, che usa i propri;
       - l'import file passa dallo Storage Access Framework;
       - il salvataggio usa ACTION_CREATE_DOCUMENT.
+
+      Dichiararne zero non bastava. play-services-mlkit-document-scanner si
+      porta dietro com.google.android.datatransport, il trasporto con cui le
+      librerie Google caricano telemetria, e quello dichiara INTERNET e
+      ACCESS_NETWORK_STATE: finivano nell'APK, e chi guardava i permessi
+      nelle impostazioni vedeva «Internet» a dispetto di quanto promesso.
+
+      Il nostro codice non apre una connessione da nessuna parte, e
+      condividere non ne ha bisogno: ACTION_SEND consegna il file a un'altra
+      app tramite FileProvider, ed e' quella a mandarlo in rete con i propri
+      permessi. Quindi si tolgono.
     -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.ACCESS_NETWORK_STATE"
+        tools:node="remove" />
 
     <application
         android:allowBackup="false"
