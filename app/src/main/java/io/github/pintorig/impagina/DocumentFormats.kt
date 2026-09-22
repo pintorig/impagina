@@ -405,5 +405,22 @@ object PageLayouts {
         }
     }
 
+    /**
+     * Suggerisce la disposizione che fa stare tutto in una pagina sola, quando
+     * esiste. Stesso principio di `orientationThatFits`: la UI propone la
+     * correzione invece di limitarsi a constatare che servono due fogli.
+     *
+     * Restituisce `null` se il piano e' gia' su una pagina, o se nessuna
+     * disposizione ci riesce senza rimpicciolire il documento.
+     */
+    fun arrangementThatFitsOnePage(spec: LayoutSpec): GridArrangement? {
+        if (!computePlan(spec).isMultiPage) return null
+        return GridArrangement.entries.firstOrNull { a ->
+            if (a == spec.arrangement) return@firstOrNull false
+            val piano = computePlan(spec.copy(arrangement = a))
+            !piano.isMultiPage && piano.appliedScale >= computePlan(spec).appliedScale
+        }
+    }
+
     private fun ceilDiv(a: Int, b: Int): Int = ceil(a.toDouble() / b).toInt()
 }

@@ -372,6 +372,16 @@ fun AppScreen() {
                     .padding(horizontal = Spazi.bordo, vertical = Spazi.fra)
             )
 
+            val disposizioneMigliore = PageLayouts.arrangementThatFitsOnePage(spec)
+            if (plan.isMultiPage && disposizioneMigliore != null) {
+                AvvisoPagine(
+                    pagine = plan.pageCount,
+                    rimedio = disposizioneMigliore,
+                    onRimedio = { spec = spec.copy(arrangement = it) },
+                    modifier = Modifier.padding(horizontal = Spazi.bordo, vertical = Spazi.stretto)
+                )
+            }
+
             if (plan.isScaledDown) {
                 AvvisoRiduzione(
                     percentuale = plan.scalePercent,
@@ -409,7 +419,16 @@ fun AppScreen() {
                 spec = spec.copy(
                     combinazione = c,
                     documentType = c?.documenti?.first() ?: spec.documentType,
-                    slotCount = quanti
+                    slotCount = quanti,
+                    // Le etichette sono ordinate fronte, retro, fronte, retro:
+                    // con due colonne il riempimento per righe mette da solo le
+                    // due facciate di uno stesso documento sulla stessa riga.
+                    // In colonna singola tornerebbero una sotto l'altra.
+                    arrangement = if (c != null) {
+                        GridArrangement.SIDE_BY_SIDE
+                    } else {
+                        GridArrangement.STACKED
+                    }
                 )
                 // Le foto restano dove sono: l'etichetta segue la posizione, e
                 // se l'ordine non torna si sposta dal foglio.
@@ -532,6 +551,39 @@ private fun AvvisoRiduzione(
                 TextButton(onClick = { onRimedio(rimedio) }) {
                     Text("Foglio ${rimedio.label.lowercase()}")
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Servono piu' fogli, ma una disposizione diversa ne basterebbe uno.
+ * Stessa forma dell'avviso di riduzione: constata e propone il rimedio.
+ */
+@Composable
+private fun AvvisoPagine(
+    pagine: Int,
+    rimedio: GridArrangement,
+    onRimedio: (GridArrangement) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.secondaryContainer
+    ) {
+        Row(
+            Modifier.padding(horizontal = Spazi.fra, vertical = Spazi.stretto),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Servono $pagine fogli.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = { onRimedio(rimedio) }) {
+                Text("Stai in uno: ${rimedio.label.lowercase()}")
             }
         }
     }

@@ -60,9 +60,10 @@ fun SezioneTemplate(
             if (combinazione == null) {
                 "Un solo documento per foglio, con le facciate che scegli."
             } else {
-                "${combinazione.documenti.size} documenti, ${combinazione.slotCount} facciate. " +
-                    "Le foto già acquisite restano al loro posto: se l'ordine non torna, " +
-                    "spostale dal foglio."
+                "${combinazione.documenti.size} documenti, ${combinazione.slotCount} facciate: " +
+                    "fronte e retro dello stesso documento finiscono sulla stessa riga, " +
+                    "il documento dopo sulla riga sotto. Le foto già acquisite restano " +
+                    "al loro posto: se l'ordine non torna, spostale dal foglio."
             }
         )
         // Solo formati tessera: il motore calcola una sola dimensione di cella

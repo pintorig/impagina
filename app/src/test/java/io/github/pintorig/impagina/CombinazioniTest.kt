@@ -185,3 +185,72 @@ class CombinazioniNeiPresetTest {
         assertEquals(null, PresetCodec.decode(dalFuturo)?.layout?.combinazione)
     }
 }
+
+/**
+ * La disposizione dei template misti: fronte e retro dello stesso documento
+ * devono finire sulla stessa riga, e il documento dopo sulla riga dopo.
+ */
+class DisposizioneTemplateTest {
+
+    private fun piano(combo: Combinazione, arrangement: GridArrangement) =
+        PageLayouts.computePlan(
+            LayoutSpec(
+                combinazione = combo,
+                slotCount = combo.slotCount,
+                arrangement = arrangement
+            )
+        )
+
+    @Test
+    fun `affiancate mette fronte e retro dello stesso documento sulla stessa riga`() {
+        // Le etichette della combinazione sono ordinate fronte, retro, fronte,
+        // retro: con due colonne il riempimento per righe le accoppia da solo.
+        val combo = Combinazione.IDENTITA_SANITARIA_PATENTE
+        val plan = piano(combo, GridArrangement.SIDE_BY_SIDE)
+        assertEquals(2, plan.columns)
+
+        val etichette = plan.pages.flatMap { it.labels }
+        etichette.chunked(2).forEachIndexed { riga, coppia ->
+            val documento = combo.documenti[riga].shortLabel
+            assertTrue(
+                "riga $riga: attese due facciate di $documento, trovate $coppia",
+                coppia.all { it.startsWith(documento) }
+            )
+            assertTrue("riga $riga non ha fronte e retro", coppia.any { it.endsWith("fronte") })
+            assertTrue("riga $riga non ha fronte e retro", coppia.any { it.endsWith("retro") })
+        }
+    }
+
+    @Test
+    fun `tre documenti affiancati stanno in un foglio solo`() {
+        val plan = piano(Combinazione.IDENTITA_SANITARIA_PATENTE, GridArrangement.SIDE_BY_SIDE)
+        assertEquals(1, plan.pageCount)
+        assertTrue("sono stati rimpiccioliti", !plan.isScaledDown)
+    }
+
+    @Test
+    fun `in colonna gli stessi tre documenti occupano due fogli`() {
+        val plan = piano(Combinazione.IDENTITA_SANITARIA_PATENTE, GridArrangement.STACKED)
+        assertEquals(2, plan.pageCount)
+    }
+
+    @Test
+    fun `la disposizione che salva una pagina viene suggerita`() {
+        val spec = LayoutSpec(
+            combinazione = Combinazione.IDENTITA_SANITARIA_PATENTE,
+            slotCount = 6,
+            arrangement = GridArrangement.STACKED
+        )
+        assertEquals(GridArrangement.SIDE_BY_SIDE, PageLayouts.arrangementThatFitsOnePage(spec))
+    }
+
+    @Test
+    fun `quando basta gia' una pagina non si suggerisce niente`() {
+        val spec = LayoutSpec(
+            combinazione = Combinazione.IDENTITA_SANITARIA,
+            slotCount = 4,
+            arrangement = GridArrangement.STACKED
+        )
+        assertEquals(null, PageLayouts.arrangementThatFitsOnePage(spec))
+    }
+}
