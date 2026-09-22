@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -99,12 +100,16 @@ fun SchedaFacciata(
 
             if (bitmap == null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Spazi.stretto)) {
-                    TextButton(onClick = onScatta, modifier = Modifier.weight(1f)) {
-                        Text("Scatta")
-                    }
-                    TextButton(onClick = onScegli, modifier = Modifier.weight(1f)) {
-                        Text("File")
-                    }
+                    TextButton(
+                        onClick = onScatta,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) { Text("Scatta", maxLines = 1) }
+                    TextButton(
+                        onClick = onScegli,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) { Text("File", maxLines = 1) }
                 }
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {

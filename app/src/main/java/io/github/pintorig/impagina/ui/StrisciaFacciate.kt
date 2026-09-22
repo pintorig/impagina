@@ -6,6 +6,7 @@ package io.github.pintorig.impagina.ui
 import android.graphics.Bitmap
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,9 +26,9 @@ import io.github.pintorig.impagina.Reorder
 /**
  * Le facciate come striscia orizzontale sotto il foglio.
  *
- * Restano sulla schermata principale mentre tutto il resto si ritira nel
- * pannello: sono il contenuto, non un'impostazione. Senza di loro non ci
- * sarebbe modo di acquisire niente.
+ * Restano sulla schermata principale mentre le impostazioni si ritirano nel
+ * pannello: sono il contenuto, non un'opzione. Senza di loro non ci sarebbe
+ * modo di acquisire niente.
  */
 @Composable
 fun StrisciaFacciate(
@@ -43,41 +44,55 @@ fun StrisciaFacciate(
     onSposta: (Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = Spazi.bordo),
-        horizontalArrangement = Arrangement.spacedBy(Spazi.fra),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        PageLayouts.labelsFor(tipo, quante).forEachIndexed { i, etichetta ->
-            SchedaFacciata(
-                etichetta = etichetta,
-                // la miniatura mostra il filtro: l'effetto si vede senza
-                // aspettare che si rigeneri l'anteprima del foglio
-                bitmap = resi.getOrNull(i) ?: scatti.getOrNull(i),
-                proporzione = tipo.previewRatio,
-                modifier = Modifier.width(150.dp),
-                onScatta = { onScatta(i) },
-                onScegli = { onScegli(i) },
-                onRuota = { onRuota(i) },
-                onTogli = { onTogli(i) },
-                indietroPossibile = Reorder.canMoveBack(i),
-                avantiPossibile = Reorder.canMoveForward(scatti, i),
-                onIndietro = { onSposta(i, i - 1) },
-                onAvanti = { onSposta(i, i + 1) }
-            )
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(Spazi.stretto)) {
-            OutlinedIconButton(
-                onClick = { onQuante(quante + 1) },
-                enabled = quante < PageLayouts.MAX_SLOTS
-            ) { Icon(AppIcons.Piu, contentDescription = "Aggiungi una facciata") }
-            OutlinedIconButton(
-                onClick = { onQuante(quante - 1) },
-                enabled = quante > 1
-            ) { Icon(AppIcons.Meno, contentDescription = "Togli l'ultima facciata") }
+    BoxWithConstraints(modifier.fillMaxWidth().padding(horizontal = Spazi.bordo)) {
+        // Con due facciate — il caso normale — devono entrarci entrambe senza
+        // scorrere. La larghezza si ricava dallo spazio che resta, tolta la
+        // colonna dei comandi: fissarla a occhio tagliava la seconda scheda.
+        val comandi = 48.dp
+        val larghezza = (maxWidth - comandi - Spazi.fra * 2) / 2
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spazi.fra),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(Spazi.fra),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PageLayouts.labelsFor(tipo, quante).forEachIndexed { i, etichetta ->
+                    SchedaFacciata(
+                        etichetta = etichetta,
+                        // la miniatura mostra il filtro: l'effetto si vede senza
+                        // aspettare che si rigeneri l'anteprima del foglio
+                        bitmap = resi.getOrNull(i) ?: scatti.getOrNull(i),
+                        proporzione = tipo.previewRatio,
+                        modifier = Modifier.width(larghezza),
+                        onScatta = { onScatta(i) },
+                        onScegli = { onScegli(i) },
+                        onRuota = { onRuota(i) },
+                        onTogli = { onTogli(i) },
+                        indietroPossibile = Reorder.canMoveBack(i),
+                        avantiPossibile = Reorder.canMoveForward(scatti, i),
+                        onIndietro = { onSposta(i, i - 1) },
+                        onAvanti = { onSposta(i, i + 1) }
+                    )
+                }
+            }
+
+            // I comandi del numero di facciate restano fermi: dentro lo
+            // scorrimento finivano tagliati dal bordo e sembravano rotti.
+            Column(verticalArrangement = Arrangement.spacedBy(Spazi.stretto)) {
+                OutlinedIconButton(
+                    onClick = { onQuante(quante + 1) },
+                    enabled = quante < PageLayouts.MAX_SLOTS
+                ) { Icon(AppIcons.Piu, contentDescription = "Aggiungi una facciata") }
+                OutlinedIconButton(
+                    onClick = { onQuante(quante - 1) },
+                    enabled = quante > 1
+                ) { Icon(AppIcons.Meno, contentDescription = "Togli l'ultima facciata") }
+            }
         }
     }
 }

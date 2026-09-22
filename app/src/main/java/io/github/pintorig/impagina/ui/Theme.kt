@@ -31,9 +31,9 @@ object Ink {
     val InkLight = Color(0xFF8EC3DE)     // lo stesso blu, per fondo scuro
     val Azure = Color(0xFFD3E2EC)        // tessera sanitaria
     val AzureDeep = Color(0xFF0C2433)
-    val Desk = Color(0xFFE7E9EC)         // la scrivania, fredda: non è crema
+    val Desk = Color(0xFFD8DDE3)         // la scrivania, fredda: non è crema
     val DeskDark = Color(0xFF0E1418)
-    val Panel = Color(0xFFF4F6F8)
+    val Panel = Color(0xFFF2F5F8)
     val PanelDark = Color(0xFF16202A)
     val Edge = Color(0xFFCBD2D8)
     val EdgeDark = Color(0xFF2C3A47)
@@ -45,6 +45,9 @@ object Ink {
     /** Il colore della carta. Identico nei due temi: la carta è bianca. */
     val Paper = Color(0xFFFFFFFF)
     val PaperEdge = Color(0xFFD6D9DE)
+
+    /** Scritte sul foglio vuoto: piu' scuro del bordo, o non si legge. */
+    val PaperInk = Color(0xFF8A96A0)
 }
 
 private val Chiaro = lightColorScheme(

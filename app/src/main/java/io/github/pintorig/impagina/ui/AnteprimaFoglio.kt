@@ -8,6 +8,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -51,15 +52,23 @@ fun AnteprimaFoglio(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(Modifier.weight(1f, fill = false), contentAlignment = Alignment.Center) {
+        BoxWithConstraints(
+            Modifier.weight(1f, fill = false),
+            contentAlignment = Alignment.Center
+        ) {
+            // Con fillMaxSize() aspectRatio adatta prima la larghezza, e su uno
+            // spazio alto e stretto il foglio sborda in basso finendo sotto la
+            // striscia delle facciate. Si sceglie quale lato comanda.
+            val proporzione = piano.first.pageWidthPt / piano.first.pageHeightPt
+            val comandaAltezza = maxWidth / maxHeight > proporzione
             Surface(
                 shape = MaterialTheme.shapes.extraSmall,
                 color = Ink.Paper,
                 border = BorderStroke(1.dp, Ink.PaperEdge),
                 shadowElevation = 10.dp,
                 modifier = Modifier
-                    .fillMaxHeightOrWidth(piano)
-                    .aspectRatio(piano.first.pageWidthPt / piano.first.pageHeightPt)
+                    .fillMaxSize()
+                    .aspectRatio(proporzione, matchHeightConstraintsFirst = comandaAltezza)
             ) {
                 if (anteprima != null) {
                     Image(
@@ -98,10 +107,6 @@ fun AnteprimaFoglio(
     }
 }
 
-/** Lo spazio disponibile è alto e stretto: comanda l'altezza. */
-private fun Modifier.fillMaxHeightOrWidth(piano: PagePlan): Modifier =
-    if (piano.first.pageWidthPt > piano.first.pageHeightPt) fillMaxWidth() else fillMaxSize()
-
 /**
  * Lo stato vuoto dice che cosa fare, non che cosa manca: una casella con
  * scritto «vuoto» non ha mai aiutato nessuno.
@@ -117,13 +122,13 @@ private fun FoglioVuoto() {
             AppIcons.Fotocamera,
             contentDescription = null,
             modifier = Modifier.size(32.dp),
-            tint = Ink.PaperEdge
+            tint = Ink.PaperInk
         )
         Text(
             "Scatta il fronte del documento per vedere il foglio",
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center,
-            color = Ink.PaperEdge,
+            color = Ink.PaperInk,
             modifier = Modifier.padding(top = Spazi.fra)
         )
     }

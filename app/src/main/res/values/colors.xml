@@ -3,5 +3,5 @@
     <color name="ic_launcher_background">#1B4D6B</color>
     <!-- Deve coincidere con Ink.Desk in Theme.kt: è lo stesso colore, e questo
          serve solo per l'istante che precede la prima composizione. -->
-    <color name="scrivania">#E7E9EC</color>
+    <color name="scrivania">#D8DDE3</color>
 </resources>

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -40,7 +41,7 @@ fun BarraAzioni(
         tonalElevation = 3.dp,
         shadowElevation = 8.dp
     ) {
-        Column {
+        Column(Modifier.navigationBarsPadding()) {
             if (occupato) LinearProgressIndicator(Modifier.fillMaxWidth())
             Row(
                 Modifier
