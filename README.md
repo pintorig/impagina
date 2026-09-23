@@ -201,7 +201,14 @@ Il wrapper è nel repository, quindi non serve avere Gradle installato:
 ```bash
 ./gradlew assembleDebug
 ./gradlew installDebug      # con un dispositivo collegato
+./gradlew apkDiProva        # APK con versione, data e revisione nel nome
 ```
+
+`apkDiProva` scrive in `app/build/prova/` un file come
+`impagina-1.9.0-20260923-1432-5e96d09-debug.apk`: fra un rilascio e l'altro si
+costruiscono decine di APK, e senza data e revisione si chiamerebbero tutti
+uguale. Così l'ordine alfabetico coincide con quello cronologico e ogni file
+resta riconducibile al commit da cui è uscito.
 
 È la stessa versione che usa la pipeline, che ora invoca `./gradlew` invece di
 un Gradle installato a parte: quello che passa in locale passa anche in CI.
