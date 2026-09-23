@@ -14,7 +14,7 @@ A4, esportabili in PDF, JPEG, PNG o WebP.
 Tutto avviene sul dispositivo. **Nessun permesso dichiarato**, nessuna rete,
 nessuna dipendenza oltre Compose e lo scanner ML Kit.
 
-Stato: `v1.9.0` (`versionCode` 10), 13 sorgenti, **120 test** su JVM.
+Stato: `v1.10.0` (`versionCode` 11), 25 sorgenti, **139 test** su JVM.
 Repository: <https://github.com/pintorig/impagina> — Apache-2.0, © 2026 Giuliano
 Pintori.
 
@@ -383,3 +383,4 @@ Dettagli in [CHANGELOG.md](CHANGELOG.md).
 | 1.7.0 | riordino delle facciate |
 | 1.8.0 | preset e ripristino dell'ultima configurazione |
 | 1.9.0 | condivisione, apertura del file salvato, nomi sanificati |
+| 1.10.0 | interfaccia ridisegnata, il foglio come superficie di lavoro, template multi-documento |
