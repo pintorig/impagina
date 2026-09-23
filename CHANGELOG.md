@@ -3,6 +3,42 @@
 Formato secondo [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 Il progetto segue il [versionamento semantico](https://semver.org/lang/it/).
 
+## [1.10.0]
+
+### Aggiunto
+- **Template avanzati**: quattro combinazioni che mettono più documenti sullo
+  stesso foglio — identità + tessera sanitaria, identità + patente, tessera
+  sanitaria + patente, e tutti e tre. Fronte e retro dello stesso documento
+  finiscono sulla stessa riga, il documento successivo sulla riga sotto: tre
+  documenti stanno in un foglio solo
+- Il foglio è diventato anche la superficie di lavoro: negli slot vuoti
+  compaiono i comandi per scattare o scegliere un file, dove finirà il
+  documento. Uno slot pieno apre ruota, togli e gli spostamenti
+- Avviso quando servono più fogli e una disposizione diversa ne basterebbe uno,
+  con la correzione applicabile a un tocco
+- Tema scuro completo, e disegno da bordo a bordo
+- Anteprime della schermata per il pannello Preview di Android Studio, in
+  `app/src/debug/`
+- `./gradlew apkDiProva`: APK con versione, data e revisione nel nome
+
+### Modificato
+- **Interfaccia ridisegnata.** Il foglio A4 è il protagonista e occupa lo
+  spazio; le impostazioni salgono dal basso in un pannello e da chiuse mostrano
+  il proprio valore. Prima quindici gruppi di controlli stavano in un unico
+  elenco scorrevole, con l'anteprima sepolta a metà
+- Palette ricavata dai documenti che l'app impagina: il blu della carta
+  d'identità, l'azzurro della tessera sanitaria, il bordeaux del passaporto.
+  Prima era la palette di esempio di Material 3
+- Le icone sono disegnate: erano caratteri di testo, senza descrizione per
+  l'accessibilità
+- `MainActivity` da 808 a circa 560 righe, con l'interfaccia divisa in
+  quattordici file
+
+### Corretto
+- La barra delle azioni finiva sotto la barra di navigazione di sistema
+- Il foglio sbordava dal proprio spazio quando la finestra era alta e stretta
+- Il testo sul foglio vuoto aveva lo stesso colore del bordo, illeggibile
+
 ## [1.9.0]
 
 ### Aggiunto
